@@ -58,7 +58,7 @@ echo ""
 echo "Starting evaluation at: $(date)"
 python ./navsim/planning/script/run_pdm_score.py \
 agent=WoTE_agent \
-agent.checkpoint_path="exp/WoTE/1epoch_with_checkpoint/lightning_logs/version_36964712/checkpoints/epoch=0-step=5320.ckpt" \
+'agent.checkpoint_path=exp/WoTE/1epoch_with_checkpoint/lightning_logs/version_36964712/checkpoints/epoch=0-step=5320.ckpt' \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 experiment_name=eval/WoTE/1epoch_checkpoint \
 split=test \
