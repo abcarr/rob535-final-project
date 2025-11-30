@@ -27,7 +27,8 @@ save navtrain future trajectories as numpy array
 hydra.initialize(config_path="../../navsim/planning/script/config/common/scene_filter")
 cfg = hydra.compose(config_name=FILTER)
 scene_filter: SceneFilter = instantiate(cfg)
-openscene_data_root = Path("/data2/yingyan_li/repo/WoTE//dataset/")
+# Use environment variable or default path
+openscene_data_root = Path(os.environ.get("OPENSCENE_DATA_ROOT", "/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"))
 
 # 创建场景加载器
 scene_loader = SceneLoader(
@@ -61,7 +62,8 @@ numpy_path = f"future_trajectories_list_{SPLIT}_{FILTER}.npy"
 np.save(numpy_path, future_trajectories_list)
 
 # load 
-future_trajectories_list = np.load("/data2/yingyan_li/repo/WoTE//extra_data/future_trajectories_list_trainval_navtrain.npy")
+project_root = Path(os.environ.get("NAVSIM_DEVKIT_ROOT", "/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"))
+future_trajectories_list = np.load(project_root / "extra_data/future_trajectories_list_trainval_navtrain.npy")
 np.set_printoptions(suppress=True)
 # 将 future_trajectories_list 转换为 numpy 数组，并展平每条轨迹
 N = len(future_trajectories_list)
@@ -81,13 +83,13 @@ trajectory_anchors = kmeans.trajectory_anchors_  # 聚类中心，形状为 (K, 
 trajectory_anchors = trajectory_anchors.reshape(K, 8, 3)
 
 # save trajectory_anchors as numpy array
-numpy_path = f"/data2/yingyan_li/repo/WoTE//extra_data/planning_vb/trajectory_anchors_{K}.npy"
+numpy_path = project_root / f"extra_data/planning_vb/trajectory_anchors_{K}.npy"
 np.save(numpy_path, trajectory_anchors)
 
 """"
 Visual code
 """
-numpy_path = f"/data2/yingyan_li/repo/WoTE//extra_data/planning_vb/trajectory_anchors_{K}.npy"
+numpy_path = project_root / f"extra_data/planning_vb/trajectory_anchors_{K}.npy"
 trajectory_anchors = np.load(numpy_path)
 
 # Visualize all cluster centers on a single plot
@@ -103,11 +105,11 @@ ax.set_xlabel('X Position')
 ax.set_ylabel('Y Position')
 ax.grid(False)
 plt.tight_layout()
-plt.savefig(f'/data2/yingyan_li/repo/WoTE//extra_data/planning_vb/trajectory_anchors_{K}_no_grid.png')
+plt.savefig(project_root / f'extra_data/planning_vb/trajectory_anchors_{K}_no_grid.png')
 
 # # save trajectory_anchors as numpy array
 # Load cluster centers data
-numpy_path = f"/data2/yingyan_li/repo/WoTE/extra_data/planning_vb/trajectory_anchors_{K}.npy"
+numpy_path = project_root / f"extra_data/planning_vb/trajectory_anchors_{K}.npy"
 trajectory_anchors = np.load(numpy_path)
 
 # Create a figure for plotting
@@ -136,6 +138,8 @@ ax.grid(False)
 
 # Adjust layout and save the figure
 plt.tight_layout()
-plt.savefig(f'/data2/yingyan_li/repo/WoTE//vis/trajectory_anchors_{K}_highlighted_{highlight_idx}.png')
-print(f"Saved figure to /data2/yingyan_li/repo/WoTE//vis/trajectory_anchors_{K}_highlighted_{highlight_idx}.png")
+vis_dir = project_root / "vis"
+vis_dir.mkdir(exist_ok=True)
+plt.savefig(vis_dir / f'trajectory_anchors_{K}_highlighted_{highlight_idx}.png')
+print(f"Saved figure to {vis_dir / f'trajectory_anchors_{K}_highlighted_{highlight_idx}.png'}")
 
