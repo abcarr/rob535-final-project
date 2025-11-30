@@ -165,3 +165,11 @@ class WoTEConfig:
     offset_im_reward_weight = 0.1
     im_loss_weight = 1.0
     metric_loss_weight = 1.0
+
+    # Temporal BEV Fusion (ConvGRU) - CONFIGURABLE
+    use_convgru: bool = False  # Main toggle for temporal fusion
+    num_history_frames: int = 4  # Number of historical frames to aggregate
+    temporal_hidden_dim: int = 512  # Hidden dimension for ConvGRU
+    temporal_kernel_size: Tuple[int, int] = (3, 3)  # Convolution kernel size
+    temporal_num_layers: int = 1  # Number of ConvGRU layers
+    temporal_fusion_lr_mult: float = 1.0  # Learning rate multiplier for ConvGRU params

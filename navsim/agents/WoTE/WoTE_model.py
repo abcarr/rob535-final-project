@@ -203,7 +203,27 @@ class WoTEModel(nn.Module):
             nn.ReLU(),
             nn.Linear(SCORE_HEAD_HIDDEN_DIM, SCORE_HEAD_OUTPUT_DIM),
         )
-        self.reward_weights = config.reward_weights if hasattr(config, 'reward_weights') else [0.1, 0.5, 0.5, 1.0]  
+        self.reward_weights = config.reward_weights if hasattr(config, 'reward_weights') else [0.1, 0.5, 0.5, 1.0]
+        
+        # Temporal BEV Fusion with ConvGRU (optional)
+        self.config = config
+        self.use_convgru = config.use_convgru if hasattr(config, 'use_convgru') else False
+        
+        if self.use_convgru:
+            from navsim.agents.WoTE.modules.temporal_fusion import TemporalBEVFusion
+            
+            self.temporal_bev_fusion = TemporalBEVFusion(
+                bev_channels=512,
+                hidden_dim=config.temporal_hidden_dim,
+                bev_size=(8, 8),
+                num_history=config.num_history_frames,
+                kernel_size=config.temporal_kernel_size,
+                num_layers=config.temporal_num_layers
+            )
+            print(f"✓ ConvGRU temporal fusion enabled with {config.num_history_frames} frames")
+        else:
+            self.temporal_bev_fusion = None
+            print("✓ Using single-frame BEV (ConvGRU disabled)")
 
     def encode_traj_into_ego_feat(self, ego_status_feat: torch.Tensor, init_trajectory_anchor: torch.Tensor, batch_size: int):
         """
@@ -237,9 +257,12 @@ class WoTEModel(nn.Module):
         # Get batch size
         batch_size = status_feature.shape[0]
 
+        # Extract ego_motion if available (for temporal fusion)
+        ego_motion = features.get("ego_motion", None) if self.use_convgru else None
+
         # Process backbone and BEV features
         backbone_bev_feature, flatten_bev_feature = self._process_backbone_features(
-            camera_feature, lidar_feature
+            camera_feature, lidar_feature, ego_motion
         )
 
         # Get ego status features
@@ -373,11 +396,53 @@ class WoTEModel(nn.Module):
         offset_dict["trajectory_offset_rewards"] = trajectory_offset_rewards
         return offset_dict
 
-    def _process_backbone_features(self, camera_feature: torch.Tensor, lidar_feature: torch.Tensor):
+    def _process_backbone_features(self, camera_feature: torch.Tensor, lidar_feature: torch.Tensor, ego_motion=None):
         """
-        Process the backbone network and extract BEV features.
+        Process the backbone network and extract BEV features with optional temporal fusion.
+        
+        Args:
+            camera_feature: [B, T, C, H, W] if use_convgru=True, else [B, C, H, W]
+            lidar_feature: [B, T, C, H, W] if use_convgru=True, else [B, C, H, W]
+            ego_motion: [B, T-1, 2, 3] affine matrices (only if use_convgru=True)
+        
+        Returns:
+            backbone_bev_feature: [B, 512, 8, 8]
+            flatten_bev_feature: [B, num_keyval, C]
         """
-        _, backbone_bev_feature, _ = self._backbone(camera_feature, lidar_feature)
+        is_temporal = camera_feature.ndim == 5
+        
+        # Branch 1: Temporal fusion with ConvGRU (if enabled)
+        if self.use_convgru and is_temporal:
+            B, T, C, H, W = camera_feature.shape
+            
+            # Process each frame through backbone
+            bev_features_list = []
+            for t in range(T):
+                _, bev_t, _ = self._backbone(
+                    camera_feature[:, t],
+                    lidar_feature[:, t]
+                )
+                bev_features_list.append(bev_t)
+            
+            # Stack temporal BEVs: [B, T, 512, 8, 8]
+            bev_features_temporal = torch.stack(bev_features_list, dim=1)
+            
+            # Apply temporal fusion with ego-motion compensation
+            backbone_bev_feature, _ = self.temporal_bev_fusion(
+                bev_features_temporal,
+                ego_motion
+            )
+        
+        # Branch 2: Single-frame processing (original behavior)
+        else:
+            # Handle both [B, C, H, W] and [B, T, C, H, W] where T=1
+            if is_temporal:
+                camera_feature = camera_feature[:, -1]  # Use last frame
+                lidar_feature = lidar_feature[:, -1]
+            
+            _, backbone_bev_feature, _ = self._backbone(camera_feature, lidar_feature)
+        
+        # Continue with existing downscaling (same for both branches)
         bev_feature = self._bev_downscale(backbone_bev_feature).flatten(-2, -1).permute(0, 2, 1)
         flatten_bev_feature = bev_feature + self._keyval_embedding.weight[None, :, :]
         return backbone_bev_feature, flatten_bev_feature
