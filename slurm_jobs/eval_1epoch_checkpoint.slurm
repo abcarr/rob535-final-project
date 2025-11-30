@@ -62,7 +62,8 @@ agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 experiment_name=eval/WoTE/1epoch_checkpoint \
 split=test \
-scene_filter=navtest
+scene_filter=navtest \
+metric_cache_path=/home/abcarr/metric_cache
 
 echo "Evaluation completed at: $(date)"
 
