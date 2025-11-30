@@ -43,7 +43,9 @@ compute_state_only = False
 if compute_state_only:
     print("Computing state only")
 
-CONFIG_PATH = "/home/yingyan.li/repo/WoTE/navsim/planning/script/config/pdm_scoring"
+# Get the repository root directory
+REPO_ROOT = os.path.join(os.path.dirname(__file__), '../..')
+CONFIG_PATH = os.path.join(REPO_ROOT, 'navsim/planning/script/config/pdm_scoring')
 CONFIG_NAME = "default_run_pdm_score"
 @hydra.main(config_path=CONFIG_PATH, config_name=CONFIG_NAME)
 def main(cfg: DictConfig) -> None:
@@ -133,7 +135,8 @@ def format_and_save_scores(score_rows, num_clusters, output_dir):
         score_dict[key] = value
 
     # Save formatted score_rows using numpy
-    save_path = f'/home/yingyan.li/repo/WoTE/dataset/extra_data/planning_vb/formatted_pdm_score_{num_clusters}.npy'
+    data_root = os.environ.get('OPENSCENE_DATA_ROOT', os.path.join(os.path.dirname(__file__), '../..'))
+    save_path = os.path.join(data_root, f'extra_data/planning_vb/formatted_pdm_score_{num_clusters}.npy')
     np.save(save_path, score_dict, allow_pickle=True)
 
     print(f'Saved formatted scores to {save_path}')
@@ -233,8 +236,8 @@ def load_predefined_trajectories() -> List[Any]:
     Load 256 pre-defined trajectories from the given path.
     Assumes that the trajectories are stored in a serialized format (e.g., pickle).
     """
-
-    path = f'/home/yingyan.li/repo/WoTE/dataset/extra_data/planning_vb/trajectory_anchors_{num_clusters}.npy'
+    data_root = os.environ.get('OPENSCENE_DATA_ROOT', os.path.join(os.path.dirname(__file__), '../..'))
+    path = os.path.join(data_root, f'extra_data/planning_vb/trajectory_anchors_{num_clusters}.npy')
     with open(path, "rb") as f:
         trajectories = np.load(f)
     return trajectories

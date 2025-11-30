@@ -13,7 +13,7 @@ class WoTEConfig:
         time_horizon=4, interval_length=0.5
     )
 
-    resnet34_path = '/home/yingyan.li/repo/WoTE/ckpts/resnet34.pth'
+    resnet34_path = '/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/ckpts/resnet34.pth'
     image_architecture: str = "resnet34"
     lidar_architecture: str = "resnet34"
 
@@ -123,8 +123,8 @@ class WoTEConfig:
     num_traj_anchor: int = 256
     
     use_sim_reward: bool = True
-    sim_reward_dict_path: str = f'/home/yingyan.li/repo/WoTE/dataset/extra_data/planning_vb/formatted_pdm_score_{num_traj_anchor}.npy'
-    cluster_file_path = f'/home/yingyan.li/repo/WoTE/dataset/extra_data/planning_vb/trajectory_anchors_{num_traj_anchor}.npy'
+    sim_reward_dict_path: str = f'/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/extra_data/planning_vb/formatted_pdm_score_{num_traj_anchor}.npy'
+    cluster_file_path = f'/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/extra_data/planning_vb/trajectory_anchors_{num_traj_anchor}.npy'
     num_plan_queries: int = 32
 
     # map loss
@@ -165,3 +165,11 @@ class WoTEConfig:
     offset_im_reward_weight = 0.1
     im_loss_weight = 1.0
     metric_loss_weight = 1.0
+
+    # Temporal BEV Fusion (ConvGRU) - CONFIGURABLE
+    use_convgru: bool = False  # Main toggle for temporal fusion
+    num_history_frames: int = 4  # Number of historical frames to aggregate
+    temporal_hidden_dim: int = 512  # Hidden dimension for ConvGRU
+    temporal_kernel_size: Tuple[int, int] = (3, 3)  # Convolution kernel size
+    temporal_num_layers: int = 1  # Number of ConvGRU layers
+    temporal_fusion_lr_mult: float = 1.0  # Learning rate multiplier for ConvGRU params
