@@ -35,14 +35,14 @@ export PYTHONNOUSERSITE=1
 cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project
 
 echo "Generating metric cache for test split..."
-echo "Output path: ${NAVSIM_EXP_ROOT}/metric_cache"
+echo "Output path: /home/abcarr/metric_cache"
 echo ""
 
 SPLIT=test
 
 python ${NAVSIM_DEVKIT_ROOT}/navsim/planning/script/run_metric_caching.py \
 split=${SPLIT} \
-cache.cache_path="${NAVSIM_EXP_ROOT}/metric_cache" \
+cache.cache_path="/home/abcarr/metric_cache" \
 scene_filter.frame_interval=1
 
 echo ""
