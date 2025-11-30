@@ -58,12 +58,13 @@ for token in tqdm(scene_loader.tokens):
         future_trajectories_list.append(future_trajectory)
 
 # save future_trajectories_list as numpy array
-numpy_path = f"future_trajectories_list_{SPLIT}_{FILTER}.npy"
+project_root = Path(os.environ.get("NAVSIM_DEVKIT_ROOT", "/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"))
+numpy_path = project_root / "extra_data" / f"future_trajectories_list_{SPLIT}_{FILTER}.npy"
+numpy_path.parent.mkdir(parents=True, exist_ok=True)
 np.save(numpy_path, future_trajectories_list)
 
 # load 
-project_root = Path(os.environ.get("NAVSIM_DEVKIT_ROOT", "/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"))
-future_trajectories_list = np.load(project_root / "extra_data/future_trajectories_list_trainval_navtrain.npy")
+future_trajectories_list = np.load(numpy_path)
 np.set_printoptions(suppress=True)
 # 将 future_trajectories_list 转换为 numpy 数组，并展平每条轨迹
 N = len(future_trajectories_list)
