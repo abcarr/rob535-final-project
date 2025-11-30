@@ -50,8 +50,6 @@ scene_filter=navtrain \
 dataloader.params.batch_size=16 \
 trainer.params.max_epochs=1 \
 trainer.params.check_val_every_n_epoch=1 \
-trainer.params.enable_checkpointing=true \
-trainer.params.enable_model_summary=true \
 split=trainval
 
 echo "Training completed at: $(date)"
