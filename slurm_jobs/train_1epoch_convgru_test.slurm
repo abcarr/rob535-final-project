@@ -4,7 +4,7 @@
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=40GB
+#SBATCH --mem=100GB
 #SBATCH --gres=gpu:1
 #SBATCH --time=03:00:00
 #SBATCH --output=logs/train_convgru_1epoch_%j.out
@@ -66,7 +66,7 @@ agent.config.num_history_frames=4 \
 agent.slice_indices=[0,1,2,3] \
 experiment_name=WoTE/convgru_1epoch_test \
 scene_filter=navtrain \
-dataloader.params.batch_size=8 \
+dataloader.params.batch_size=16 \
 trainer.params.max_epochs=1 \
 trainer.params.check_val_every_n_epoch=1 \
 split=trainval
