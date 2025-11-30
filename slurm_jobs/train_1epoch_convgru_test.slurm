@@ -61,8 +61,8 @@ echo "Starting ConvGRU training at: $(date)"
 python ./navsim/planning/script/run_training.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
-agent.config.use_convgru=true \
-agent.config.num_history_frames=4 \
++agent.config.use_convgru=true \
++agent.config.num_history_frames=4 \
 agent.slice_indices=[0,1,2,3] \
 experiment_name=WoTE/convgru_1epoch_test \
 scene_filter=navtrain \
