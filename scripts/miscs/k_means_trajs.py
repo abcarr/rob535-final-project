@@ -77,7 +77,7 @@ kmeans.fit(flattened_trajectories)
 
 # 获取每条轨迹的聚类标签和聚类中心
 labels = kmeans.labels_  # 每条轨迹对应的聚类标签
-trajectory_anchors = kmeans.trajectory_anchors_  # 聚类中心，形状为 (K, 24)
+trajectory_anchors = kmeans.cluster_centers_  # 聚类中心，形状为 (K, 24)
 
 
 # 将聚类中心转换回原始轨迹的形状 (8, 3)
