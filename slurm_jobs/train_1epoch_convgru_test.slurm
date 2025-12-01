@@ -4,9 +4,9 @@
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=100GB
+#SBATCH --mem=120
 #SBATCH --gres=gpu:1
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=logs/train_convgru_1epoch_%j.out
 #SBATCH --error=logs/train_convgru_1epoch_%j.err
 #SBATCH --mail-type=END,FAIL
@@ -51,7 +51,7 @@ echo "=========================================="
 echo "use_convgru: true"
 echo "num_history_frames: 4"
 echo "slice_indices: [0, 1, 2, 3]"
-echo "batch_size: 8 (reduced from 16 for memory)"
+echo "batch_size: 4 (small batch for quick test)"
 echo "temporal_hidden_dim: 512"
 echo "=========================================="
 echo ""
@@ -66,7 +66,7 @@ agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.slice_indices=[0,1,2,3] \
 experiment_name=WoTE/convgru_1epoch_test \
 scene_filter=navtrain \
-dataloader.params.batch_size=16 \
+dataloader.params.batch_size=4 \
 trainer.params.max_epochs=1 \
 trainer.params.check_val_every_n_epoch=1 \
 split=trainval
