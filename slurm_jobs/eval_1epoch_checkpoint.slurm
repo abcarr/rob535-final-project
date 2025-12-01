@@ -32,13 +32,13 @@ export PATH=/home/abcarr/.conda/envs/wote/bin:$PATH
 # Set environment variables
 export NUPLAN_MAP_VERSION="nuplan-maps-v1.0"
 export NUPLAN_MAPS_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/maps"
-export NAVSIM_EXP_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/exp"
-export NAVSIM_DEVKIT_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/"
+export NAVSIM_EXP_ROOT="/home/abcarr/rob535-final-project/exp"
+export NAVSIM_DEVKIT_ROOT="/home/abcarr/rob535-final-project/"
 export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"
 export PYTHONNOUSERSITE=1
 
 # Navigate to project
-cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project
+cd /home/abcarr/rob535-final-project
 
 # Verify GPU
 echo "GPU Information:"
