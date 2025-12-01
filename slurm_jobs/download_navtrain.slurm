@@ -18,8 +18,9 @@ echo "Job started at: $(date)"
 echo "Job ID: $SLURM_JOB_ID"
 echo ""
 
-cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project
-mkdir -p logs
+cd /scratch/eecs442s021w25_class_root/eecs442s021w25_class/abcarr
+mkdir -p rob535-final-project/logs
+cd rob535-final-project
 
 # Clean up any previous partial downloads
 echo "Cleaning up previous downloads..."
