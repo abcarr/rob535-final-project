@@ -4,9 +4,9 @@
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32GB
+#SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=logs/eval_1epoch_checkpoint_%j.out
 #SBATCH --error=logs/eval_1epoch_checkpoint_%j.err
 #SBATCH --mail-type=END,FAIL
