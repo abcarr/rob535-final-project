@@ -86,10 +86,15 @@ class WoTEAgent(AbstractAgent):
         return SensorConfig.build_tfu_sensors(self.slice_indices) 
 
     def get_target_builders(self) -> List[AbstractTargetBuilder]:
+        # Targets are always computed only for the current frame (index 3)
+        # even when using ConvGRU with multiple historical frames
+        use_convgru = self.config.use_convgru if hasattr(self.config, 'use_convgru') else False
+        target_slice_indices = [3] if use_convgru else self.slice_indices
+        
         return [
             WoTETargetBuilder(
                         trajectory_sampling=self._trajectory_sampling,
-                        slice_indices=self.slice_indices,
+                        slice_indices=target_slice_indices,
                         sim_reward_dict_path=self.config.sim_reward_dict_path,
                         config=self.config,
                     ),
