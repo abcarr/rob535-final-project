@@ -1,13 +1,20 @@
 _target_: navsim.agents.WoTE.WoTE_agent.WoTEAgent
-_convert_: 'all'
+_convert_: "all"
 
 config:
   _target_: navsim.agents.WoTE.configs.default.WoTEConfig
-  _convert_: 'all'
+  _convert_: "all"
+  # -----Vidya: multi-task learning flags------
+  use_multitask_learning: false # set true to enable multitask learning
+  multitask_weight: 1.0
+  num_img_classes: 8
+  # to get image features from TransfuserBackbone
+  use_semantic: true # only when use_multitask_learning: true
+  # use_depth: false      # optional, can be either/both
 
 trajectory_sampling:
   _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
-  _convert_: 'all'
+  _convert_: "all"
   time_horizon: 4
   interval_length: 0.5
 

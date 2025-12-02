@@ -28,10 +28,10 @@ class ResNet34Backbone(nn.Module):
     def forward(self, x):
         # Extract features from the last convolutional layer
         res = self.backbone(x)
-        return res            
-       
+        return res
+
 class WoTEModel(nn.Module):
-    def __init__(self, 
+    def __init__(self,
                  config,
                 ):
         super().__init__()
@@ -64,6 +64,22 @@ class WoTEModel(nn.Module):
             num_keyval, config.tf_d_model
         )
 
+        # -----------Vidya: multi-task learning heads -------
+        self.use_multitask_learning = getattr(config, "use_multitask_learning", False)
+        if self.use_multitask_learning:
+            num_img_classes = getattr(config, "num_img_classes", config.num_bev_classes)
+            img_feat_channels = self._backbone.num_image_features  # from TransfuserBackbone
+
+            self.img_seg_head   = ImgSegHead(img_feat_channels, num_img_classes)
+            self.img_inst_head  = ImgInstanceHead(img_feat_channels)
+            self.img_depth_head = ImgDepthHead(img_feat_channels)
+
+            # Uncertainty parameters: s = log σ^2
+            self.log_var_seg   = nn.Parameter(torch.zeros(()))
+            self.log_var_inst  = nn.Parameter(torch.zeros(()))
+            self.log_var_depth = nn.Parameter(torch.zeros(()))
+        #----------------------------------------------------------------------
+
         # Load offline trajectories and MLP for planning vb feature
         cluster_file = config.cluster_file_path
         self.trajectory_anchors = torch.nn.Parameter(
@@ -79,14 +95,14 @@ class WoTEModel(nn.Module):
 
         # Transformer Encoder for trajectory_anchors_feat
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim, 
-            nhead=TRANSFORMER_NHEAD, 
-            dim_feedforward=TRANSFORMER_DIM_FEEDFORWARD, 
+            d_model=hidden_dim,
+            nhead=TRANSFORMER_NHEAD,
+            dim_feedforward=TRANSFORMER_DIM_FEEDFORWARD,
             dropout=TRANSFORMER_DROPOUT,
             batch_first=True
         )
         self.cluster_encoder = nn.TransformerEncoder(encoder_layer, num_layers=TRANSFORMER_NUM_LAYERS)
-        
+
         # latent world model
         self.num_scenes = self.num_plan_queries + 1  # including the ego feat and action
         self.scene_position_embedding = nn.Embedding(self.num_scenes, hidden_dim)
@@ -98,9 +114,9 @@ class WoTEModel(nn.Module):
         )
 
         wm_encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim, 
-            nhead=TRANSFORMER_NHEAD, 
-            dim_feedforward=TRANSFORMER_DIM_FEEDFORWARD, 
+            d_model=hidden_dim,
+            nhead=TRANSFORMER_NHEAD,
+            dim_feedforward=TRANSFORMER_DIM_FEEDFORWARD,
             dropout=TRANSFORMER_DROPOUT,
             batch_first=True
         )
@@ -178,7 +194,7 @@ class WoTEModel(nn.Module):
                 ),
             )
         self._bev_upscale = nn.Conv2d(config.tf_d_model, 512, kernel_size=1)
-        
+
         # future agent & map
         self.num_sampled_trajs = config.num_sampled_trajs if hasattr(config, 'num_sampled_trajs') else 1
         self.new_scene_bev_feature_pos_embed = nn.Embedding(self.num_plan_queries, hidden_dim)
@@ -204,14 +220,14 @@ class WoTEModel(nn.Module):
             nn.Linear(SCORE_HEAD_HIDDEN_DIM, SCORE_HEAD_OUTPUT_DIM),
         )
         self.reward_weights = config.reward_weights if hasattr(config, 'reward_weights') else [0.1, 0.5, 0.5, 1.0]
-        
+
         # Temporal BEV Fusion with ConvGRU (optional)
         self.config = config
         self.use_convgru = config.use_convgru if hasattr(config, 'use_convgru') else False
-        
+
         if self.use_convgru:
             from navsim.agents.WoTE.modules.temporal_fusion import TemporalBEVFusion
-            
+
             self.temporal_bev_fusion = TemporalBEVFusion(
                 bev_channels=512,
                 hidden_dim=config.temporal_hidden_dim,
@@ -261,10 +277,28 @@ class WoTEModel(nn.Module):
         ego_motion = features.get("ego_motion", None) if self.use_convgru else None
 
         # Process backbone and BEV features
-        backbone_bev_feature, flatten_bev_feature = self._process_backbone_features(
+        backbone_bev_feature, flatten_bev_feature, img_feat = self._process_backbone_features(
             camera_feature, lidar_feature, ego_motion
-        )
+        ) #Vidya: extracted img_feat here
+        # ----- Vidya: image multi-task heads ----
+        if self.use_multitask_learning:
+            if img_feat is None:
+                raise RuntimeError(
+                    "img_feat is None. When use_multitask_learning is True, "
+                    "please set config.use_semantic or config.use_depth to True "
+                    "so TransfuserBackbone returns image_feature_grid."
+            )
 
+            # Use original camera resolution for output
+            H_img, W_img = camera_feature.shape[-2:]
+            logits_seg = self.img_seg_head(img_feat, (H_img, W_img))
+            offsets    = self.img_inst_head(img_feat, (H_img, W_img))
+            inv_depth  = self.img_depth_head(img_feat, (H_img, W_img))
+
+            results["img_seg_logits"]   = logits_seg   # [B, C, H, W]
+            results["img_inst_offsets"] = offsets      # [B, 2, H, W]
+            results["img_inv_depth"]    = inv_depth    # [B, 1, H, W]
+        #------------------------------------------------------------------------
         # Get ego status features
         ego_status_feat = self._get_ego_status_feature(status_feature)
 
@@ -275,7 +309,7 @@ class WoTEModel(nn.Module):
         # Optional offset prediction
         offset_dict = self._predict_offset(ego_feat_fixed_anchor_WoTE, flatten_bev_feature)
         results.update(offset_dict)
-        
+
         # Optional losses
         if self.use_agent_loss:
             agents, agents_query = self._process_agent(batch_size, flatten_bev_feature) #flatten_bev_feature.shape torch.Size([32, 32, 256])
@@ -289,7 +323,7 @@ class WoTEModel(nn.Module):
             trajectory_offset_rewards = offset_dict["trajectory_offset_rewards"]
             offseted_trajectory_anchors = init_trajectory_anchor + trajectory_offset
             ego_feat_for_reward_network, _ = self.encode_traj_into_ego_feat(ego_status_feat, offseted_trajectory_anchors, batch_size)
-        else: 
+        else:
             # training
             ego_feat_for_reward_network = ego_feat_fixed_anchor_WoTE
 
@@ -399,53 +433,61 @@ class WoTEModel(nn.Module):
     def _process_backbone_features(self, camera_feature: torch.Tensor, lidar_feature: torch.Tensor, ego_motion=None):
         """
         Process the backbone network and extract BEV features with optional temporal fusion.
-        
+
         Args:
             camera_feature: [B, T, C, H, W] if use_convgru=True, else [B, C, H, W]
             lidar_feature: [B, T, C, H, W] if use_convgru=True, else [B, C, H, W]
             ego_motion: [B, T-1, 2, 3] affine matrices (only if use_convgru=True)
-        
+
         Returns:
             backbone_bev_feature: [B, 512, 8, 8]
             flatten_bev_feature: [B, num_keyval, C]
         """
         is_temporal = camera_feature.ndim == 5
-        
+        img_feat = None  # Vidya: will hold image_feature_grid from Transfuser
+
         # Branch 1: Temporal fusion with ConvGRU (if enabled)
         if self.use_convgru and is_temporal:
             B, T, C, H, W = camera_feature.shape
-            
+
             # Process each frame through backbone
             bev_features_list = []
+            last_img_feat = None #Vidya: last frame's img feature
             for t in range(T):
                 _, bev_t, _ = self._backbone(
                     camera_feature[:, t],
                     lidar_feature[:, t]
                 )
                 bev_features_list.append(bev_t)
-            
+                last_img_feat = img_t  # Vidya: keep the last frame's image features
+
             # Stack temporal BEVs: [B, T, 512, 8, 8]
             bev_features_temporal = torch.stack(bev_features_list, dim=1)
-            
+
             # Apply temporal fusion with ego-motion compensation
             backbone_bev_feature, _ = self.temporal_bev_fusion(
                 bev_features_temporal,
                 ego_motion
             )
-        
+            img_feat = last_img_feat  # Vidya: use the last frame's img_feat for multitask heads
+
         # Branch 2: Single-frame processing (original behavior)
         else:
             # Handle both [B, C, H, W] and [B, T, C, H, W] where T=1
             if is_temporal:
                 camera_feature = camera_feature[:, -1]  # Use last frame
                 lidar_feature = lidar_feature[:, -1]
-            
-            _, backbone_bev_feature, _ = self._backbone(camera_feature, lidar_feature)
-        
+
+            #_, backbone_bev_feature, _ = self._backbone(camera_feature, lidar_feature)
+            #Vidya:
+            bev, _, img = self._backbone(camera_feature, lidar_feature)
+            backbone_bev_feature = bev
+            img_feat = img  # Vidya may be None if config.use_semantic/use_depth are False
+
         # Continue with existing downscaling (same for both branches)
         bev_feature = self._bev_downscale(backbone_bev_feature).flatten(-2, -1).permute(0, 2, 1)
         flatten_bev_feature = bev_feature + self._keyval_embedding.weight[None, :, :]
-        return backbone_bev_feature, flatten_bev_feature
+        return backbone_bev_feature, flatten_bev_feature, img_feat
 
     def _get_ego_status_feature(self, status_feature: torch.Tensor) -> torch.Tensor:
         """
@@ -492,7 +534,7 @@ class WoTEModel(nn.Module):
         scene_bev_feature = scene_bev_feature.view(bz, num_traj, -1, h * w)  # [batch_size, num_traj, C, H*W]
         scene_bev_feature = scene_bev_feature.permute(0, 1, 3, 2)  # [batch_size, num_traj, H*W, C]
         return scene_bev_feature
-    
+
     def _inject_fut_ego_into_bev(self, scene_bev_feature: torch.Tensor, ego_feat: torch.Tensor, num_traj: int, fut_idx = 8, h = 8, w = 8) -> torch.Tensor:
         """
         Inject the ego feature into the BEV map.
@@ -516,12 +558,12 @@ class WoTEModel(nn.Module):
         # Concatenate ego_feat and flatten_bev_feature_multi_trajs
         # Assume concatenation along the feature dimension
         scene_feature = torch.cat([ego_feat, flatten_bev_feature_multi_trajs], dim=1)  # [batch_size, num_traj, 1 + 32, C]
-        
+
         # Add positional embedding
         scene_position_embedding = self.scene_position_embedding.weight[None,  :, :].repeat(batch_size * num_traj, 1, 1)  # [batch_size * num_traj, 1 + 32, embedding_dim]
 
         scene_feature = scene_feature + scene_position_embedding
-        
+
         # Reshape to fit the latent world model
         fut_scene_feature = self.latent_world_model(scene_feature)  # [batch_size*num_traj, C_new, H'*W']
         fut_ego_feat = fut_scene_feature[:, 0:1]
@@ -534,18 +576,18 @@ class WoTEModel(nn.Module):
         """
         bev_feat_list = []
         for bev_feat in  fut_flatten_bev_feature_multi_trajs_list:
-            bev_feat = bev_feat.view(batch_size * num_traj, h, w, -1) 
+            bev_feat = bev_feat.view(batch_size * num_traj, h, w, -1)
             bev_feat_list.append(bev_feat)
         all_bev_feature = torch.cat(bev_feat_list, dim=-1)  # [batch_size*num_traj, H, W, C1 + C2]
         all_bev_feature = all_bev_feature.permute(0, 3, 1, 2)  # [batch_size*num_traj, C1 + C2, H, W]
-        
+
         # Apply convolution network
         reward_conv_output = self.reward_conv_net(all_bev_feature).squeeze(-1).permute(0, 2, 1)  # [batch_size*num_traj, 1, C_conv]
-        
+
         # Prepare scoring features
         cat_reward_feature = torch.cat(fut_ego_feat_list + [reward_conv_output], dim=1)  # [batch_size*num_traj, 3, C_total]
         cat_reward_feature = cat_reward_feature.reshape(batch_size * num_traj, -1)  # [batch_size*num_traj, 3*C_total]
-        
+
         # Apply scoring head
         reward_feature = self.reward_cat_head(cat_reward_feature)  # [batch_size*num_traj, 256]
         reward_feature = reward_feature.view(batch_size, num_traj, -1)  # [batch_size, num_traj, 256]
@@ -614,7 +656,7 @@ class WoTEModel(nn.Module):
         upsampled_fut_bev_feature = self.bev_upsample_head(fut_bev_feature)  # [batch_size*num_sampled_trajs, C_upscaled, H'', W'']
         fut_bev_semantic_map = self.bev_semantic_head(upsampled_fut_bev_feature)  # [batch_size*num_sampled_trajs, num_classes, H'', W'']
         return fut_bev_semantic_map
-    
+
     def inject_ego_feat_to_bev_map(self, bev_map, new_features, delta_x_y, H=8, W=8):
         """`
         Add a new feature vector in batch to the corresponding location in the BEV feature map, affecting the four pixels around each position.
@@ -713,7 +755,7 @@ class WoTEModel(nn.Module):
         updated_bev_map = bev_map_flat.view(B, C, H, W)
 
         return updated_bev_map
-    
+
     def select_best_trajectory(self, final_rewards, trajectory_anchors, batch_size):
         best_trajectory_idx = torch.argmax(final_rewards, dim=-1)  # Shape: [batch_size]
         poses = trajectory_anchors[best_trajectory_idx]  # Shape: [batch_size, 24]
@@ -772,7 +814,7 @@ class WoTEModel(nn.Module):
 
         return result
 
-       
+
     def weighted_reward_calculation(self, im_rewards, sim_rewards) -> torch.Tensor:
         """
         Calculate the final reward for each trajectory based on the given weights.
@@ -784,7 +826,7 @@ class WoTEModel(nn.Module):
 
         Returns:
             torch.Tensor: Final weighted reward for each trajectory. Shape: [batch_size, num_traj]
-        """
+        #"""
         assert len(sim_rewards) == 5, "Expected 4 metric rewards: S_NC, S_DAC, S_TTC, S_EP, S_COMFORT"
         # Extract metric rewards
         w = self.reward_weights
@@ -836,7 +878,7 @@ class AgentHead(nn.Module):
         agent_labels = self._mlp_label(agent_queries).squeeze(dim=-1)
 
         return {"agent_states": agent_states, "agent_labels": agent_labels}
-    
+
 class BEVUpsampleHead(nn.Module):
     def __init__(self, config, channel=64, c5_chs=512):
         super(BEVUpsampleHead, self).__init__()
@@ -892,27 +934,27 @@ class RewardConvNet(nn.Module):
             conv2_out_channels (int): Number of output channels for the second convolution. Default is 256.
         """
         super(RewardConvNet, self).__init__()
-        
+
         # First convolution
         self.conv1 = nn.Conv2d(
-            in_channels=input_channels, 
-            out_channels=conv1_out_channels, 
-            kernel_size=3, 
+            in_channels=input_channels,
+            out_channels=conv1_out_channels,
+            kernel_size=3,
             padding=1
         )
         self.bn1 = nn.BatchNorm2d(conv1_out_channels)  # Batch normalization for the first layer
         self.relu1 = nn.ReLU()
-        
+
         # Second convolution
         self.conv2 = nn.Conv2d(
-            in_channels=conv1_out_channels, 
-            out_channels=conv2_out_channels, 
-            kernel_size=3, 
+            in_channels=conv1_out_channels,
+            out_channels=conv2_out_channels,
+            kernel_size=3,
             padding=1
         )
         self.bn2 = nn.BatchNorm2d(conv2_out_channels)  # Batch normalization for the second layer
         self.relu2 = nn.ReLU()
-        
+
         # Adaptive average pooling to reduce spatial dimensions to 1x1
         self.pool = nn.AdaptiveAvgPool2d(1)
 
@@ -925,7 +967,7 @@ class RewardConvNet(nn.Module):
 
         Returns:
             torch.Tensor: Scoring features, shape [batch_size*num_traj, 128, 1, 1]
-        """
+        #"""
         x = self.conv1(x)         # [batch_size*num_traj, 256, 4, 8]
         x = self.bn1(x)           # Batch normalization
         x = self.relu1(x)         # ReLU activation
@@ -954,3 +996,42 @@ class TrajectoryOffsetHead(nn.Module):
         poses = self._mlp(object_queries).reshape(bz, -1, self._num_poses, StateSE2Index.size())
         poses[..., StateSE2Index.HEADING] = poses[..., StateSE2Index.HEADING].tanh() * np.pi
         return poses
+
+#-------Vidya: Mutli Task Learning HEads-----------
+class ImgSegHead(nn.Module):
+    def __init__(self, in_channels, num_classes):
+        super().__init__()
+        self.conv3x3 = nn.Conv2d(in_channels, 256, kernel_size=3, padding=1)
+        self.conv1x1 = nn.Conv2d(256, num_classes, kernel_size=1)
+
+    def forward(self, x, out_size):
+        x = F.relu(self.conv3x3(x))
+        x = self.conv1x1(x)  # [B, num_classes, H', W']
+        x = F.interpolate(x, size=out_size, mode="bilinear", align_corners=False)
+        return x
+
+
+class ImgInstanceHead(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv3x3 = nn.Conv2d(in_channels, 256, kernel_size=3, padding=1)
+        self.conv1x1 = nn.Conv2d(256, 2, kernel_size=1)  # dx, dy
+
+    def forward(self, x, out_size):
+        x = F.relu(self.conv3x3(x))
+        x = self.conv1x1(x)  # [B, 2, H', W']
+        x = F.interpolate(x, size=out_size, mode="bilinear", align_corners=False)
+        return x
+
+
+class ImgDepthHead(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv3x3 = nn.Conv2d(in_channels, 256, kernel_size=3, padding=1)
+        self.conv1x1 = nn.Conv2d(256, 1, kernel_size=1)  # inverse depth
+
+    def forward(self, x, out_size):
+        x = F.relu(self.conv3x3(x))
+        x = self.conv1x1(x)  # [B, 1, H', W']
+        x = F.interpolate(x, size=out_size, mode="bilinear", align_corners=False)
+        return x

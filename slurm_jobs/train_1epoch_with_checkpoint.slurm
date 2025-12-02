@@ -10,7 +10,7 @@
 #SBATCH --output=logs/train_1epoch_ckpt_%j.out
 #SBATCH --error=logs/train_1epoch_ckpt_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=abcarr@umich.edu
+#SBATCH --mail-user=vmarri@umich.edu
 
 # Create logs directory
 mkdir -p logs
@@ -34,7 +34,7 @@ export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_clas
 export PYTHONNOUSERSITE=1
 
 # Navigate to project
-cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project
+cd /scratch/rob535f25s001_class_root/rob535f25s001_class/vmarri/rob535-final-project
 
 # Verify GPU
 echo "GPU Information:"

@@ -64,7 +64,7 @@ class WoTEConfig:
 
     detect_boxes = False
     use_bev_semantic = False
-    
+
     use_semantic = False
     use_depth = False
     add_features = True
@@ -121,7 +121,7 @@ class WoTEConfig:
     # New
     # k-means traj
     num_traj_anchor: int = 256
-    
+
     use_sim_reward: bool = True
     sim_reward_dict_path: str = f'/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/extra_data/planning_vb/formatted_pdm_score_{num_traj_anchor}.npy'
     cluster_file_path = f'/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/extra_data/planning_vb/trajectory_anchors_{num_traj_anchor}.npy'
@@ -136,7 +136,7 @@ class WoTEConfig:
     fut_bev_semantic_weight: float = 0.1
     focal_loss_alpha = 0.5
     focal_loss_gamma = 2.0
-    
+
     # sampled trajs for supervision
     num_sampled_trajs: int = 1
 
@@ -173,3 +173,13 @@ class WoTEConfig:
     temporal_kernel_size: Tuple[int, int] = (3, 3)  # Convolution kernel size
     temporal_num_layers: int = 1  # Number of ConvGRU layers
     temporal_fusion_lr_mult: float = 1.0  # Learning rate multiplier for ConvGRU params
+
+    # ----- Vidya: Multi-Task Learning (semantic segmentation, instance segmentation and depth regression)----
+    use_multitask_learning: bool = False
+
+    # Overall weight for the combined uncertainty-weighted loss
+    multitask_weight: float = 1.0
+
+    # Number of semantic classes in the image.
+    # resusing BEV classes
+    num_img_classes: int = num_bev_classes

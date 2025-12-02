@@ -336,3 +336,111 @@ class FocalLoss(torch.nn.Module):
             return focal_loss.sum()
         else:
             return focal_loss
+
+#-----------Vidya: Mutli Task Loss-------------            
+def _compute_instance_offsets(gt_inst_id: torch.Tensor):
+    """
+    gt_inst_id: [B, H, W] int; 0 = background
+    returns: gt_offsets [B,2,H,W], inst_mask [B,H,W] bool
+    """
+    B, H, W = gt_inst_id.shape
+    device = gt_inst_id.device
+
+    yy, xx = torch.meshgrid(
+        torch.arange(H, device=device),
+        torch.arange(W, device=device),
+        indexing="ij"
+    )
+
+    offsets = torch.zeros(B, 2, H, W, device=device)
+    inst_mask = torch.zeros(B, H, W, device=device, dtype=torch.bool)
+
+    for b in range(B):
+        ids = gt_inst_id[b].unique()
+        ids = ids[ids != 0]  # exclude background
+        for k in ids:
+            mask = (gt_inst_id[b] == k)
+            if mask.sum() == 0:
+                continue
+            cx = xx[mask].float().mean()
+            cy = yy[mask].float().mean()
+            offsets[b, 0, mask] = cx - xx[mask].float()
+            offsets[b, 1, mask] = cy - yy[mask].float()
+            inst_mask[b, mask] = True
+
+    return offsets, inst_mask
+
+
+def _loss_img_seg(logits_seg, gt_sem, ignore_index=-1):
+    return F.cross_entropy(logits_seg, gt_sem, ignore_index=ignore_index)
+
+
+def _loss_img_instance(pred_offsets, gt_inst_id):
+    gt_offsets, inst_mask = _compute_instance_offsets(gt_inst_id)
+    mask = inst_mask.unsqueeze(1)  # [B,1,H,W]
+    diff = (pred_offsets - gt_offsets) * mask
+    L_raw = torch.abs(diff).sum(dim=1)  # sum over (dx,dy)
+    denom = mask.sum().clamp_min(1)
+    return L_raw.sum() / denom
+
+
+def _loss_img_depth(pred_inv_depth, gt_inv_depth, valid_mask):
+    mask = valid_mask.unsqueeze(1)
+    diff = (pred_inv_depth - gt_inv_depth.unsqueeze(1)) * mask
+    L_raw = torch.abs(diff)
+    denom = mask.sum().clamp_min(1)
+    return L_raw.sum() / denom
+    
+# Combined Loss
+def compute_multitask_loss(
+    model,
+    targets: Dict[str, torch.Tensor],
+    predictions: Dict[str, torch.Tensor],
+    config,
+) -> Dict[str, torch.Tensor]:
+    """
+    Multi-task loss (image semantic / instance / depth).
+
+    Returns:
+        dict with a single key 'multitask_loss' if enabled,
+        or {} if disabled / not applicable.
+    """
+    if not getattr(config, "use_multitask_learning", False):
+        return {}
+
+    # Ensure model & predictions actually contain the necessary entries
+    if not hasattr(model, "log_var_seg"):
+        return {}
+    if "img_seg_logits" not in predictions:
+        return {}
+
+    logits_seg    = predictions["img_seg_logits"]    # [B,C,H,W]
+    pred_offsets  = predictions["img_inst_offsets"]  # [B,2,H,W]
+    pred_inv_depth= predictions["img_inv_depth"]     # [B,1,H,W]
+
+    gt_sem        = targets["img_semantic"]          # [B,H,W]
+    gt_inst_id    = targets["img_instance_ids"]      # [B,H,W]
+    gt_inv_depth  = targets["img_inv_depth"]         # [B,H,W]
+    depth_valid   = targets["img_depth_valid"]       # [B,H,W]
+
+    # Base losses
+    L_seg   = _loss_img_seg(logits_seg, gt_sem, ignore_index=-1)
+    L_inst  = _loss_img_instance(pred_offsets, gt_inst_id)
+    L_depth = _loss_img_depth(pred_inv_depth, gt_inv_depth, depth_valid)
+
+    # Uncertainties (s = log σ^2)
+    s_seg   = model.log_var_seg
+    s_inst  = model.log_var_inst
+    s_depth = model.log_var_depth
+
+    # Kendall combination: exp(-s)*L + 0.5*s
+    L_total = (
+        torch.exp(-s_seg)   * L_seg   + 0.5 * s_seg   +
+        torch.exp(-s_inst)  * L_inst  + 0.5 * s_inst  +
+        torch.exp(-s_depth) * L_depth + 0.5 * s_depth
+    )
+
+    w = getattr(config, "multitask_weight", 1.0)
+    return {"multitask_loss": w * L_total}
+    
+ 
