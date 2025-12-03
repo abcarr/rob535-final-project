@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Use NAVSIM's dataloader to ensure proper camera/LiDAR pairing
 from navsim.common.dataloader import SceneLoader
-from navsim.common.dataclasses import SensorConfig
+from navsim.common.dataclasses import SensorConfig, SceneFilter
 
 # ============================================================================
 # Configuration
@@ -148,10 +148,19 @@ def main():
     
     # Initialize dataloader
     sensor_config = SensorConfig.build_all_sensors()
+    
+    # Create SceneFilter - required by SceneLoader
+    scene_filter = SceneFilter(
+        num_history_frames=4,
+        num_future_frames=10,
+        has_route=True,
+        log_names=[SCENE_TOKEN.split("_")[0]],  # Filter to specific log
+    )
+    
     loader = SceneLoader(
         sensor_blobs_path=Path("sensor_blobs/trainval"),
         data_path=Path("navsim_logs/trainval"),
-        scene_filter=None,
+        scene_filter=scene_filter,
         sensor_config=sensor_config,
     )
     
