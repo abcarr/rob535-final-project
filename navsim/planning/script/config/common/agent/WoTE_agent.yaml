@@ -8,9 +8,8 @@ config:
   use_multitask_learning: false # set true to enable multitask learning
   multitask_weight: 1.0
   num_img_classes: 7  # 0=background, 1-6=object classes
-  # to get image features from TransfuserBackbone
-  use_semantic: true  # required when use_multitask_learning: true
-  # use_depth: false      # optional, can be either/both
+  use_semantic: true  # Required for multitask (enables image features from backbone)
+  use_depth: false
 
 trajectory_sampling:
   _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling

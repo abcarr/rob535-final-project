@@ -57,17 +57,17 @@ class WoTEConfig:
     # Initial weight of the layer norms in the gpt.
     gpt_layer_norm_init_weight = 1.0
 
-    perspective_downsample_factor = 1
-    transformer_decoder_join = True
+    perspective_downsample_factor: int = 1
+    transformer_decoder_join: bool = True
     # detect_boxes = True
     # use_bev_semantic = True
 
-    detect_boxes = False
-    use_bev_semantic = False
+    detect_boxes: bool = False
+    use_bev_semantic: bool = False
     
-    use_semantic = False
-    use_depth = False
-    add_features = True
+    use_semantic: bool = True  # Required for multitask learning (image features from backbone)
+    use_depth: bool = False
+    add_features: bool = True
 
     # Transformer
     tf_d_model: int = 256
