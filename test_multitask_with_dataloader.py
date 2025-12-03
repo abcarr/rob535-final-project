@@ -168,30 +168,37 @@ def main():
         sensor_config=sensor_config,
     )
     
-    # Load scene
+    # Load agent input (doesn't require map API like Scene does)
     print(f"\n📦 Loading scene: {SCENE_TOKEN}")
-    scene = loader.get_scene_from_token(SCENE_TOKEN)
-    print(f"   Frames: {len(scene.frames)}")
+    agent_input = loader.get_agent_input_from_token(SCENE_TOKEN, use_fut_frames=False)
+    print(f"   Ego statuses: {len(agent_input.ego_statuses)}")
     
-    # Get frame
-    frame = scene.frames[FRAME_IDX]
-    print(f"\n📷 Using frame {FRAME_IDX}")
+    # Get current frame data (history frame 3 = current)
+    current_idx = 3  # num_history_frames - 1
+    print(f"\n📷 Using current frame (history index {current_idx})")
     
     # Get camera (front camera)
-    camera = frame.cameras.cam_f0
+    camera = agent_input.cameras.cam_f0[current_idx]
     print(f"   Camera image shape: {camera.image.shape}")
     print(f"   Camera intrinsics: {camera.intrinsics.shape}")
     
     # Get LiDAR
-    lidar = frame.lidar
+    lidar = agent_input.lidars[current_idx]
     lidar_pc = lidar.lidar_pc[:3, :].T  # [N, 3]
     print(f"   LiDAR points: {len(lidar_pc)}")
     print(f"   LiDAR range: X=[{lidar_pc[:, 0].min():.1f}, {lidar_pc[:, 0].max():.1f}]m")
     
-    # Get annotations
-    annotations = frame.annotations
-    print(f"\n📦 Annotations: {len(annotations.boxes)} objects")
-    unique, counts = np.unique(annotations.names, return_counts=True)
+    # Get annotations from scene_frames_dict directly
+    scene_frames = loader.scene_frames_dicts[SCENE_TOKEN]
+    current_frame = scene_frames[current_idx]
+    annotations_dict = current_frame["anns"]
+    
+    boxes = annotations_dict["gt_boxes"]
+    names = annotations_dict["gt_names"]
+    instance_tokens = annotations_dict["instance_tokens"]
+    
+    print(f"\n📦 Annotations: {len(boxes)} objects")
+    unique, counts = np.unique(names, return_counts=True)
     for cls, cnt in zip(unique, counts):
         print(f"   - {cls}: {cnt}")
     
@@ -208,19 +215,19 @@ def main():
     print("=" * 80)
     
     # Debug first box
-    if len(annotations.boxes) > 0:
-        test_box = annotations.boxes[0]
+    if len(boxes) > 0:
+        test_box = boxes[0]
         test_corners = get_box_corners_3d(test_box)
         test_2d, test_depths, test_valid = project_3d_to_2d(test_corners, K, R, t, debug=True)
         print(f"   First box: {test_valid.sum()}/8 corners visible")
     
     semantic_mask, sem_coverage, sem_visible = generate_semantic_mask_from_boxes(
-        annotations.boxes, annotations.names, K, R, t, (IMG_HEIGHT, IMG_WIDTH)
+        boxes, names, K, R, t, (IMG_HEIGHT, IMG_WIDTH)
     )
     
     print(f"\n✅ Semantic mask: {semantic_mask.shape}")
     print(f"   - Coverage: {sem_coverage:.1f}%")
-    print(f"   - Visible: {sem_visible}/{len(annotations.boxes)}")
+    print(f"   - Visible: {sem_visible}/{len(boxes)}")
     
     # ========================================================================
     # Test 2: Depth from LiDAR
