@@ -53,7 +53,7 @@ class WoTEModel(nn.Module):
 
         # transfuser backbone
         self._backbone = TransfuserBackbone(config)
-        self._bev_downscale = nn.Conv2d(512, config.tf_d_model, kernel_size=1)
+        self._bev_downscale = nn.Conv2d(config.bev_features_channels, config.tf_d_model, kernel_size=1)
 
         self._status_encoding = nn.Linear(STATUS_ENCODING_INPUT_DIM, config.tf_d_model)
 
