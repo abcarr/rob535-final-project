@@ -63,7 +63,7 @@ class WoTEConfig:
     # use_bev_semantic = True
 
     detect_boxes: bool = False
-    use_bev_semantic: bool = True  # Required for WoTE (generates BEV features for planning)
+    use_bev_semantic: bool = False  
     
     use_semantic: bool = True  # Required for multitask learning (image features from backbone)
     use_depth: bool = False

@@ -53,7 +53,7 @@ class WoTEModel(nn.Module):
 
         # transfuser backbone
         self._backbone = TransfuserBackbone(config)
-        self._bev_downscale = nn.Conv2d(config.bev_features_channels, config.tf_d_model, kernel_size=1)
+        self._bev_downscale = nn.Conv2d(512, config.tf_d_model, kernel_size=1)
 
         self._status_encoding = nn.Linear(STATUS_ENCODING_INPUT_DIM, config.tf_d_model)
 
@@ -478,11 +478,9 @@ class WoTEModel(nn.Module):
                 camera_feature = camera_feature[:, -1]  # Use last frame
                 lidar_feature = lidar_feature[:, -1]
 
-            #_, backbone_bev_feature, _ = self._backbone(camera_feature, lidar_feature)
-            #Vidya:
-            bev, _, img = self._backbone(camera_feature, lidar_feature)
-            backbone_bev_feature = bev
-            img_feat = img  # Vidya may be None if config.use_semantic/use_depth are False
+            # Get BEV from 2nd return (fused_features), image features from 3rd return
+            _, backbone_bev_feature, img_feat = self._backbone(camera_feature, lidar_feature)
+            # img_feat may be None if config.use_semantic/use_depth are False
 
         # Continue with existing downscaling (same for both branches)
         bev_feature = self._bev_downscale(backbone_bev_feature).flatten(-2, -1).permute(0, 2, 1)
