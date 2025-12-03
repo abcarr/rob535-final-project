@@ -54,8 +54,271 @@ class WoTETargetBuilder(AbstractTargetBuilder):
         self.num_sampled_trajs = config.num_sampled_trajs
         self.np_seed = config.np_seed if hasattr(config, 'np_seed') else 222
         self.rng = np.random.default_rng(seed=self.np_seed)
-
         
+        # Multi-task learning: Class mapping
+        self.CLASS_MAP = {
+            'vehicle': 1,
+            'pedestrian': 2,
+            'bicycle': 3,
+            'traffic_cone': 4,
+            'barrier': 5,
+            'generic_object': 6,
+        }
+
+    # ========================================================================
+    # Multi-task Target Generation Helpers
+    # ========================================================================
+    
+    @staticmethod
+    def _get_box_corners_3d(box: np.ndarray) -> np.ndarray:
+        """
+        Get 8 corners of 3D bounding box.
+        
+        Args:
+            box: [7] array (x, y, z, length, width, height, yaw)
+        
+        Returns:
+            corners: [8, 3] array of corner coordinates in ego/LiDAR frame
+        """
+        x, y, z, length, width, height, yaw = box
+        
+        # Box corners in object frame (relative to box center)
+        corners = np.array([
+            [-length/2, -length/2, length/2, length/2, -length/2, -length/2, length/2, length/2],
+            [-width/2, width/2, width/2, -width/2, -width/2, width/2, width/2, -width/2],
+            [-height/2, -height/2, -height/2, -height/2, height/2, height/2, height/2, height/2]
+        ])
+        
+        # Rotation matrix around z-axis
+        cos_yaw = np.cos(yaw)
+        sin_yaw = np.sin(yaw)
+        R = np.array([
+            [cos_yaw, -sin_yaw, 0],
+            [sin_yaw, cos_yaw, 0],
+            [0, 0, 1]
+        ])
+        
+        # Rotate and translate to ego frame
+        corners = R @ corners + np.array([[x], [y], [z]])
+        
+        return corners.T  # [8, 3]
+    
+    @staticmethod
+    def _project_3d_to_2d(
+        points_3d: np.ndarray,
+        K: np.ndarray,
+        R: np.ndarray,
+        t: np.ndarray,
+        img_shape: tuple
+    ) -> tuple:
+        """
+        Project 3D points in LiDAR frame to 2D image coordinates.
+        
+        Args:
+            points_3d: [N, 3] points in LiDAR/ego frame
+            K: [3, 3] camera intrinsic matrix
+            R: [3, 3] sensor2lidar rotation (camera to LiDAR)
+            t: [3] sensor2lidar translation (camera position in LiDAR frame)
+            img_shape: (H, W) image dimensions
+        
+        Returns:
+            points_2d: [N, 2] image coordinates (u, v)
+            valid: [N] boolean mask of valid projections
+        """
+        H, W = img_shape
+        
+        # Transform from LiDAR frame to camera frame
+        # p_camera = R^T @ (p_lidar - t)
+        points_cam = (R.T @ (points_3d.T - t.reshape(3, 1))).T
+        
+        # Filter points in front of camera (positive depth)
+        valid = points_cam[:, 2] > 0.1
+        
+        # Project to image plane
+        points_2d = (K @ points_cam.T).T  # [N, 3]
+        points_2d = points_2d[:, :2] / points_2d[:, 2:3]  # Normalize by depth
+        
+        # Check image bounds
+        in_bounds = (
+            (points_2d[:, 0] >= 0) & (points_2d[:, 0] < W) &
+            (points_2d[:, 1] >= 0) & (points_2d[:, 1] < H)
+        )
+        
+        valid = valid & in_bounds
+        
+        return points_2d, valid
+    
+    def _generate_img_semantic(
+        self,
+        annotations,
+        K: np.ndarray,
+        R: np.ndarray,
+        t: np.ndarray,
+        img_shape: tuple
+    ) -> torch.Tensor:
+        """
+        Generate semantic segmentation target from 3D bounding boxes.
+        
+        Args:
+            annotations: Annotations object with boxes and names
+            K: [3, 3] camera intrinsic matrix
+            R: [3, 3] sensor2lidar rotation
+            t: [3] sensor2lidar translation
+            img_shape: (H, W) target image size
+        
+        Returns:
+            semantic_mask: [H, W] tensor with class labels (0=background)
+        """
+        H, W = img_shape
+        semantic_mask = np.zeros((H, W), dtype=np.int64)
+        
+        for box, name in zip(annotations.boxes, annotations.names):
+            # Get 8 corners of 3D box
+            corners_3d = self._get_box_corners_3d(box)
+            
+            # Project to 2D image
+            corners_2d, valid = self._project_3d_to_2d(corners_3d, K, R, t, img_shape)
+            
+            # Skip if no corners visible
+            if not valid.any():
+                continue
+            
+            # Get bounding rectangle from visible corners
+            corners_2d_valid = corners_2d[valid]
+            u_min = max(0, int(np.floor(corners_2d_valid[:, 0].min())))
+            v_min = max(0, int(np.floor(corners_2d_valid[:, 1].min())))
+            u_max = min(W, int(np.ceil(corners_2d_valid[:, 0].max())))
+            v_max = min(H, int(np.ceil(corners_2d_valid[:, 1].max())))
+            
+            # Check if rectangle is valid
+            if u_max <= u_min or v_max <= v_min:
+                continue
+            
+            # Assign class label
+            class_id = self.CLASS_MAP.get(name, 6)  # Default to generic_object
+            semantic_mask[v_min:v_max, u_min:u_max] = class_id
+        
+        return torch.tensor(semantic_mask, dtype=torch.long)
+    
+    def _generate_img_instance_ids(
+        self,
+        annotations,
+        K: np.ndarray,
+        R: np.ndarray,
+        t: np.ndarray,
+        img_shape: tuple
+    ) -> torch.Tensor:
+        """
+        Generate instance segmentation target from 3D bounding boxes.
+        
+        Args:
+            annotations: Annotations object with boxes and instance_tokens
+            K: [3, 3] camera intrinsic matrix
+            R: [3, 3] sensor2lidar rotation
+            t: [3] sensor2lidar translation
+            img_shape: (H, W) target image size
+        
+        Returns:
+            instance_mask: [H, W] tensor with instance IDs (0=background)
+        """
+        H, W = img_shape
+        instance_mask = np.zeros((H, W), dtype=np.int64)
+        
+        for box, token in zip(annotations.boxes, annotations.instance_tokens):
+            # Get 8 corners of 3D box
+            corners_3d = self._get_box_corners_3d(box)
+            
+            # Project to 2D image
+            corners_2d, valid = self._project_3d_to_2d(corners_3d, K, R, t, img_shape)
+            
+            # Skip if no corners visible
+            if not valid.any():
+                continue
+            
+            # Get bounding rectangle from visible corners
+            corners_2d_valid = corners_2d[valid]
+            u_min = max(0, int(np.floor(corners_2d_valid[:, 0].min())))
+            v_min = max(0, int(np.floor(corners_2d_valid[:, 1].min())))
+            u_max = min(W, int(np.ceil(corners_2d_valid[:, 0].max())))
+            v_max = min(H, int(np.ceil(corners_2d_valid[:, 1].max())))
+            
+            # Check if rectangle is valid
+            if u_max <= u_min or v_max <= v_min:
+                continue
+            
+            # Generate unique instance ID from token
+            instance_id = hash(token) % (2**31 - 1)  # Keep positive
+            instance_mask[v_min:v_max, u_min:u_max] = instance_id
+        
+        return torch.tensor(instance_mask, dtype=torch.long)
+    
+    def _generate_img_depth_from_lidar(
+        self,
+        lidar,
+        K: np.ndarray,
+        R: np.ndarray,
+        t: np.ndarray,
+        img_shape: tuple
+    ) -> tuple:
+        """
+        Generate depth map from LiDAR point cloud.
+        
+        Args:
+            lidar: LiDAR object with lidar_pc attribute
+            K: [3, 3] camera intrinsic matrix
+            R: [3, 3] sensor2lidar rotation
+            t: [3] sensor2lidar translation
+            img_shape: (H, W) target image size
+        
+        Returns:
+            inv_depth_map: [H, W] tensor with inverse depth (1/z)
+            depth_valid: [H, W] boolean tensor indicating valid depth pixels
+        """
+        H, W = img_shape
+        
+        # Extract LiDAR points (first 3 rows are x, y, z)
+        lidar_points = lidar.lidar_pc[:3, :].T  # [N, 3]
+        
+        # Transform to camera frame
+        points_cam = (R.T @ (lidar_points.T - t.reshape(3, 1))).T
+        
+        # Filter points in front of camera
+        valid = points_cam[:, 2] > 0.1
+        points_cam = points_cam[valid]
+        
+        if len(points_cam) == 0:
+            # No valid points
+            return (
+                torch.zeros((H, W), dtype=torch.float32),
+                torch.zeros((H, W), dtype=torch.bool)
+            )
+        
+        # Project to image
+        points_2d = (K @ points_cam.T).T
+        u = (points_2d[:, 0] / points_2d[:, 2]).astype(int)
+        v = (points_2d[:, 1] / points_2d[:, 2]).astype(int)
+        depths = points_cam[:, 2]
+        
+        # Filter within image bounds
+        valid_uv = (u >= 0) & (u < W) & (v >= 0) & (v < H)
+        u = u[valid_uv]
+        v = v[valid_uv]
+        depths = depths[valid_uv]
+        
+        # Create depth maps
+        inv_depth_map = np.zeros((H, W), dtype=np.float32)
+        depth_valid = np.zeros((H, W), dtype=bool)
+        
+        # Fill depth map (take closest depth per pixel if multiple points)
+        for ui, vi, di in zip(u, v, depths):
+            if not depth_valid[vi, ui] or di < (1.0 / inv_depth_map[vi, ui]):
+                inv_depth_map[vi, ui] = 1.0 / di  # Inverse depth
+                depth_valid[vi, ui] = True
+        
+        return (
+            torch.tensor(inv_depth_map, dtype=torch.float32),
+            torch.tensor(depth_valid, dtype=torch.bool)
+        )
 
     def get_unique_name(self) -> str:
         return "WoTE_target"
@@ -150,6 +413,41 @@ class WoTETargetBuilder(AbstractTargetBuilder):
             fut_bev_semantic_map_list.append(fut_bev_semantic_map_cur)
             
         result["fut_bev_semantic_map"] = torch.stack(fut_bev_semantic_map_list)
+        
+        # ========================================================================
+        # Multi-task Learning: Generate image-space targets
+        # ========================================================================
+        use_multitask = getattr(self._config, 'use_multitask_learning', False)
+        if use_multitask:
+            # Get current frame
+            frame = scene.frames[self.slice_indices[0]]
+            
+            # Get front camera
+            camera = frame.cameras.cam_f0
+            
+            # Get camera calibration
+            K = camera.intrinsics  # [3, 3]
+            R = camera.sensor2lidar_rotation  # [3, 3]
+            t = camera.sensor2lidar_translation  # [3]
+            
+            # Target image size (after WoTE preprocessing)
+            img_shape = (self._config.camera_height, self._config.camera_width)  # (256, 1024)
+            
+            # Get annotations and LiDAR
+            annotations = frame.annotations
+            lidar = frame.lidar
+            
+            # Generate targets
+            result["img_semantic"] = self._generate_img_semantic(
+                annotations, K, R, t, img_shape
+            )
+            result["img_instance_ids"] = self._generate_img_instance_ids(
+                annotations, K, R, t, img_shape
+            )
+            result["img_inv_depth"], result["img_depth_valid"] = \
+                self._generate_img_depth_from_lidar(
+                    lidar, K, R, t, img_shape
+                )
 
         return result
     

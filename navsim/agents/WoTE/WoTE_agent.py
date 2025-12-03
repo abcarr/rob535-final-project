@@ -17,7 +17,7 @@ from navsim.planning.training.abstract_feature_target_builder import (
 from navsim.common.dataclasses import Scene
 import timm, cv2
 from navsim.agents.WoTE.WoTE_model import WoTEModel
-from navsim.agents.WoTE.WoTE_loss import compute_wote_loss, compute_multitask_loss #Vidya added multi task loss
+from navsim.agents.WoTE.WoTE_loss import compute_wote_loss, compute_multitask_loss
 from navsim.agents.WoTE.WoTE_targets import WoTETargetBuilder
 from navsim.agents.WoTE.WoTE_features import WoTEFeatureBuilder
 from navsim.common.dataclasses import AgentInput, Trajectory, SensorConfig
@@ -86,10 +86,15 @@ class WoTEAgent(AbstractAgent):
         return SensorConfig.build_tfu_sensors(self.slice_indices) 
 
     def get_target_builders(self) -> List[AbstractTargetBuilder]:
+        # Targets are always computed only for the current frame (index 3)
+        # even when using ConvGRU with multiple historical frames
+        use_convgru = self.config.use_convgru if hasattr(self.config, 'use_convgru') else False
+        target_slice_indices = [3] if use_convgru else self.slice_indices
+        
         return [
             WoTETargetBuilder(
                         trajectory_sampling=self._trajectory_sampling,
-                        slice_indices=self.slice_indices,
+                        slice_indices=target_slice_indices,
                         sim_reward_dict_path=self.config.sim_reward_dict_path,
                         config=self.config,
                     ),
@@ -110,18 +115,17 @@ class WoTEAgent(AbstractAgent):
         targets: Dict[str, torch.Tensor],
         predictions: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
-    	#----Vidya--------
-    	# Base WoTE losses (trajectory, imitation, sim metrics, agents, BEV map)
-    	loss_dict = compute_wote_loss(targets, predictions, self.config)
-
-    	# multi-task loss
-    	vision_loss_dict = compute_vision_multitask_loss(
-        self.WoTE_model, targets, predictions, self.config
-    	)
-    	loss_dict.update(vision_loss_dict)
-
-    	return loss_dict
-        #-----------------------------
+        # Base WoTE losses (trajectory, agents, BEV map)
+        loss_dict = compute_wote_loss(targets, predictions, self.config)
+        
+        # Add multitask loss if enabled
+        if self.config.use_multitask_learning:
+            multitask_loss_dict = compute_multitask_loss(
+                self.WoTE_model, targets, predictions, self.config
+            )
+            loss_dict.update(multitask_loss_dict)
+        
+        return loss_dict
 
     def get_optimizers(self) -> Union[Optimizer, Dict[str, Union[Optimizer, LRScheduler]]]:
         use_coslr_opt = self.config.use_coslr_opt if hasattr(self.config, 'use_coslr_opt') else False
