@@ -16,7 +16,9 @@ from navsim.common.dataclasses import SensorConfig, SceneFilter
 # ============================================================================
 # Configuration
 # ============================================================================
-SCENE_TOKEN = "2021.05.12.19.36.12_veh-35_00005_00204"
+# Scene token is the frame token, not the log filename!
+# Use the first available scene from the log
+SCENE_TOKEN = "a6a284584b19599f"  # From frame 3 of first log
 FRAME_IDX = 3  # Middle frame (has history context)
 
 # Image dimensions (front camera after WoTE preprocessing)
@@ -150,16 +152,13 @@ def main():
     sensor_config = SensorConfig.build_all_sensors()
     
     # Create SceneFilter - required by SceneLoader
-    # Note: SCENE_TOKEN is the full scene filename (without .pkl)
-    # Extract log name from scene token (first 5 underscore-separated parts)
-    log_name = "_".join(SCENE_TOKEN.split("_")[:5])  # "2021.05.12.19.36.12_veh-35"
-    
+    # Load from the first log file only (fast for testing)
     scene_filter = SceneFilter(
         num_history_frames=4,
         num_future_frames=10,
         has_route=True,
-        log_names=[log_name],  # Load only the specific log containing our scene
-        max_scenes=20,  # Limit scenes for faster testing
+        log_names=["2021.05.12.19.36.12_veh-35_00005_00204"],  # First log (filename without .pkl)
+        max_scenes=5,  # Just load first 5 scenes
     )
     
     loader = SceneLoader(
