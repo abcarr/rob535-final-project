@@ -382,9 +382,22 @@ def _loss_img_instance(pred_offsets, gt_inst_id):
     gt_offsets, inst_mask = _compute_instance_offsets(gt_inst_id)
     mask = inst_mask.unsqueeze(1)  # [B,1,H,W]
     diff = (pred_offsets - gt_offsets) * mask
-    L_raw = torch.abs(diff).sum(dim=1)  # sum over (dx,dy)
-    denom = mask.sum().clamp_min(1)
-    return L_raw.sum() / denom
+    L_raw = torch.abs(diff).sum(dim=1)  # sum over (dx,dy) -> [B,H,W]
+    
+    # Normalize per batch to handle varying instance counts
+    B = L_raw.shape[0]
+    batch_losses = []
+    for b in range(B):
+        denom = mask[b].sum().clamp_min(1)
+        batch_losses.append(L_raw[b].sum() / denom)
+    
+    # Average across batch (only count batches with instances)
+    batch_losses = torch.stack(batch_losses)
+    has_instances = (mask.sum(dim=[1,2,3]) > 0)  # [B]
+    if has_instances.sum() > 0:
+        return batch_losses[has_instances].mean()
+    else:
+        return batch_losses.mean()  # All zeros anyway
 
 
 def _loss_img_depth(pred_inv_depth, gt_inv_depth, valid_mask):
@@ -431,10 +444,11 @@ def compute_multitask_loss(
     L_inst  = _loss_img_instance(pred_offsets, gt_inst_id)
     L_depth = _loss_img_depth(pred_inv_depth, gt_inv_depth, depth_valid)
 
-    # Uncertainties (s = log σ^2)
-    s_seg   = model.log_var_seg
-    s_inst  = model.log_var_inst
-    s_depth = model.log_var_depth
+    # Uncertainties (s = log σ^2) with clamping to prevent extreme weights
+    # Clamp to [-5, 5] → exp(-s) ∈ [0.0067, 148]
+    s_seg   = torch.clamp(model.log_var_seg, -5.0, 5.0)
+    s_inst  = torch.clamp(model.log_var_inst, -5.0, 5.0)
+    s_depth = torch.clamp(model.log_var_depth, -5.0, 5.0)
 
     # Kendall combination: exp(-s)*L + 0.5*s
     L_total = (
