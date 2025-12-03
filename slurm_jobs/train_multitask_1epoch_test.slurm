@@ -65,7 +65,6 @@ dataloader.params.batch_size=16 \
 dataloader.params.num_workers=8 \
 trainer.params.max_epochs=10 \
 trainer.params.check_val_every_n_epoch=1 \
-trainer.params.every_n_epochs=1 \
 split=trainval
 
 echo "Training completed at: $(date)"
