@@ -9,7 +9,7 @@ config:
   multitask_weight: 1.0
   num_img_classes: 8
   # to get image features from TransfuserBackbone
-  use_semantic: false # only when use_multitask_learning: true
+  use_semantic: true # only when use_multitask_learning: true
   # use_depth: false      # optional, can be either/both
 
 trajectory_sampling:

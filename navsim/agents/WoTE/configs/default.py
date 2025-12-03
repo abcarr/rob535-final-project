@@ -65,9 +65,9 @@ class WoTEConfig:
     detect_boxes = False
     use_bev_semantic = False
 
-    use_semantic = False
-    use_depth = False
-    add_features = True
+    use_semantic: bool = True  # Required for multitask learning (image features from backbone)
+    use_depth: bool = False
+    add_features: bool = True
 
     # Transformer
     tf_d_model: int = 256
