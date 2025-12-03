@@ -308,10 +308,12 @@ class WoTETargetBuilder(AbstractTargetBuilder):
         # Create depth maps
         inv_depth_map = np.zeros((H, W), dtype=np.float32)
         depth_valid = np.zeros((H, W), dtype=bool)
+        depth_min = np.full((H, W), float('inf'), dtype=np.float32)  # Track minimum depth
         
         # Fill depth map (take closest depth per pixel if multiple points)
         for ui, vi, di in zip(u, v, depths):
-            if not depth_valid[vi, ui] or di < (1.0 / inv_depth_map[vi, ui]):
+            if di < depth_min[vi, ui]:  # Keep closest depth
+                depth_min[vi, ui] = di
                 inv_depth_map[vi, ui] = 1.0 / di  # Inverse depth
                 depth_valid[vi, ui] = True
         

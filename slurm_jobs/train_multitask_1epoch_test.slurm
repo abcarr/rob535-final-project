@@ -1,14 +1,16 @@
 #!/bin/bash
-#SBATCH --job-name=wote_multitask_1epoch
+#SBATCH --job-name=multitask_weight50_10epochs
 #SBATCH --account=rob535f25s001_class
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=100GB
 #SBATCH --gres=gpu:1
-#SBATCH --time=04:00:00
-#SBATCH --output=logs/train_multitask_1epoch_%j.out
-#SBATCH --error=logs/train_multitask_1epoch_%j.err
+#SBATCH --time=08:00:00
+#SBATCH --output=logs/multitask_weight50_10epochs_%j.out
+#SBATCH --error=logs/multitask_weight50_10epochs_%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=abcarr@umich.edu
 
 # Create logs directory
 mkdir -p logs
@@ -38,7 +40,7 @@ cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-pro
 echo "GPU Information:"
 nvidia-smi
 
-# Run training for 1 epoch WITH MULTITASK LEARNING
+# Run training for 10 epochs WITH MULTITASK LEARNING
 echo "Starting MULTITASK training at: $(date)"
 echo ""
 echo "=========================================="
@@ -46,31 +48,34 @@ echo "Multitask Configuration:"
 echo "=========================================="
 echo "use_multitask_learning: true"
 echo "use_semantic: true (from WoTE_agent.yaml)"
-echo "multitask_weight: 1.0"
+echo "multitask_weight: 50.0"
 echo "num_img_classes: 7 (0=bg, 1-6=objects)"
-echo "batch_size: 4 (small for quick test)"
+echo "batch_size: 16 (baseline WoTE config)"
+echo "max_epochs: 10"
 echo "=========================================="
 echo ""
 python ./navsim/planning/script/run_training.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.config.use_multitask_learning=true \
-experiment_name=WoTE/multitask_1epoch_test \
+agent.config.multitask_weight=50.0 \
+experiment_name=WoTE/multitask_weight50_10epochs \
 scene_filter=navtrain \
-dataloader.params.batch_size=4 \
-dataloader.params.num_workers=4 \
-trainer.params.max_epochs=1 \
+dataloader.params.batch_size=16 \
+dataloader.params.num_workers=8 \
+trainer.params.max_epochs=10 \
 trainer.params.check_val_every_n_epoch=1 \
+trainer.params.every_n_epochs=1 \
 split=trainval
 
 echo "Training completed at: $(date)"
 
 # List checkpoint files
 echo "Checkpoint files created:"
-ls -lh exp/WoTE/multitask_1epoch_test/lightning_logs/version_0/checkpoints/
+ls -lh exp/WoTE/multitask_weight50_10epochs/lightning_logs/version_0/checkpoints/
 
 # Check if training logs exist
-if [ -f exp/WoTE/multitask_1epoch_test/lightning_logs/version_0/events.out.tfevents.* ]; then
+if [ -f exp/WoTE/multitask_weight50_10epochs/lightning_logs/version_0/events.out.tfevents.* ]; then
     echo "TensorBoard logs created successfully"
 fi
 

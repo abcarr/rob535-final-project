@@ -340,6 +340,9 @@ class FocalLoss(torch.nn.Module):
 #-----------Vidya: Mutli Task Loss-------------            
 def _compute_instance_offsets(gt_inst_id: torch.Tensor):
     """
+    Compute instance center offsets for each pixel.
+    Offsets point FROM pixel TO instance center (cx-x, cy-y).
+    
     gt_inst_id: [B, H, W] int; 0 = background
     returns: gt_offsets [B,2,H,W], inst_mask [B,H,W] bool
     """
@@ -441,6 +444,16 @@ def compute_multitask_loss(
     )
 
     w = getattr(config, "multitask_weight", 1.0)
-    return {"multitask_loss": w * L_total}
+    
+    # Return detailed loss breakdown
+    return {
+        "multitask_loss": w * L_total,
+        "multitask_seg_loss": L_seg.detach(),      # Raw semantic loss
+        "multitask_inst_loss": L_inst.detach(),    # Raw instance loss
+        "multitask_depth_loss": L_depth.detach(),  # Raw depth loss
+        "multitask_log_var_seg": s_seg.detach(),   # Uncertainty parameters
+        "multitask_log_var_inst": s_inst.detach(),
+        "multitask_log_var_depth": s_depth.detach(),
+    }
     
  
