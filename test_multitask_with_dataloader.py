@@ -150,11 +150,13 @@ def main():
     sensor_config = SensorConfig.build_all_sensors()
     
     # Create SceneFilter - required by SceneLoader
+    # Note: SCENE_TOKEN is the full scene filename (without .pkl)
+    # log_names should be None to load all logs, or use the log prefix
     scene_filter = SceneFilter(
         num_history_frames=4,
         num_future_frames=10,
         has_route=True,
-        log_names=[SCENE_TOKEN.split("_")[0]],  # Filter to specific log
+        log_names=None,  # Load all logs - don't filter by log name
     )
     
     loader = SceneLoader(
