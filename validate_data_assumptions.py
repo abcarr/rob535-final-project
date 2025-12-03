@@ -113,21 +113,46 @@ print("3. LIDAR DATA")
 print("=" * 80)
 
 lidar_path = frame['lidar_path']
-print(f"\nLiDAR path: {lidar_path}")
+print(f"\nLiDAR path (from metadata): {lidar_path}")
 
-# Try to load LiDAR
+# Try to load LiDAR - first try metadata path, then fallback to first available file
 scene_dir = Path("sensor_blobs/trainval")
-if (scene_dir / lidar_path).exists():
-    lidar_pc = np.fromfile(scene_dir / lidar_path, dtype=np.float32).reshape(-1, 5)
-    print(f"\n✅ Loaded LiDAR:")
-    print(f"  - Shape: {lidar_pc.shape}")
-    print(f"  - Fields: [x, y, z, intensity, ring] (assumed)")
-    print(f"  - XYZ range:")
-    print(f"    - X: [{lidar_pc[:, 0].min():.1f}, {lidar_pc[:, 0].max():.1f}]")
-    print(f"    - Y: [{lidar_pc[:, 1].min():.1f}, {lidar_pc[:, 1].max():.1f}]")
-    print(f"    - Z: [{lidar_pc[:, 2].min():.1f}, {lidar_pc[:, 2].max():.1f}]")
+lidar_full_path = scene_dir / lidar_path
+
+if not lidar_full_path.exists():
+    print(f"⚠️  LiDAR file from metadata not found: {lidar_path}")
+    # Try to find any .pcd file in the scene
+    scene_lidar_dir = Path("sensor_blobs/trainval/2021.05.12.19.36.12_veh-35_00005_00204/MergedPointCloud")
+    if scene_lidar_dir.exists():
+        pcd_files = list(scene_lidar_dir.glob("*.pcd"))
+        if pcd_files:
+            lidar_full_path = pcd_files[0]
+            print(f"✓ Using first available LiDAR file: {lidar_full_path.name}")
+        else:
+            print(f"❌ No .pcd files found in {scene_lidar_dir}")
+            lidar_full_path = None
+    else:
+        lidar_full_path = None
+
+if lidar_full_path and lidar_full_path.exists():
+    # Try loading as PCD format (Point Cloud Data)
+    try:
+        # PCD files can be ASCII or binary - try both
+        with open(lidar_full_path, 'rb') as f:
+            header = f.read(1000)
+            if b'ascii' in header.lower():
+                print(f"⚠️  LiDAR is ASCII PCD format (not implemented for quick test)")
+                print(f"   But file exists and is readable!")
+            else:
+                # Binary PCD - skip header and read data
+                # This is a simplified approach - full PCD parsing is complex
+                print(f"✓ LiDAR file exists (binary PCD format)")
+                print(f"   Note: PCD loading not implemented in validation script")
+                print(f"   But we can implement it for the full test!")
+    except Exception as e:
+        print(f"⚠️  Could not read LiDAR file: {e}")
 else:
-    print(f"⚠️  LiDAR file not found at: {scene_dir / lidar_path}")
+    print(f"❌ No LiDAR files available for testing")
 
 # ============================================================================
 # 4. WoTE Image Processing

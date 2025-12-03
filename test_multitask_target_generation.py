@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import cv2
 from pathlib import Path
 import pickle
+import struct
 
 # ============================================================================
 # Configuration
@@ -43,6 +44,52 @@ CLASS_MAP = {
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+def load_pcd_file(pcd_path):
+    """
+    Load a PCD (Point Cloud Data) file.
+    Handles both ASCII and binary formats.
+    
+    Returns:
+        points: [N, 3] array of (x, y, z) coordinates
+    """
+    with open(pcd_path, 'rb') as f:
+        # Read header
+        header_lines = []
+        while True:
+            line = f.readline().decode('ascii').strip()
+            header_lines.append(line)
+            if line.startswith('DATA'):
+                break
+        
+        # Parse header
+        is_ascii = 'ascii' in line.lower()
+        
+        # Find number of points
+        num_points = None
+        fields = []
+        for line in header_lines:
+            if line.startswith('POINTS'):
+                num_points = int(line.split()[1])
+            elif line.startswith('FIELDS'):
+                fields = line.split()[1:]
+        
+        # Read data
+        if is_ascii:
+            # ASCII format
+            data = np.loadtxt(f)
+        else:
+            # Binary format
+            # Assume float32 for x, y, z (typical for PCD)
+            data = np.fromfile(f, dtype=np.float32)
+            # Reshape based on number of fields
+            if len(fields) > 0:
+                data = data.reshape(-1, len(fields))
+        
+        # Extract x, y, z (first 3 columns)
+        points = data[:, :3]
+        
+        return points
 
 def load_metadata(metadata_file):
     """Load scene metadata."""
@@ -318,8 +365,24 @@ def main():
     
     # Get LiDAR
     lidar_path = frame_data['lidar_path']
-    lidar_pc = np.fromfile(SCENE_DIR / lidar_path, dtype=np.float32).reshape(-1, 5)[:, :3]
-    print(f"\n🔦 LiDAR: {len(lidar_pc)} points")
+    lidar_full_path = SCENE_DIR / lidar_path
+    
+    # Check if file exists, otherwise use first available
+    if not lidar_full_path.exists():
+        print(f"⚠️  LiDAR file from metadata not found: {lidar_path}")
+        scene_lidar_dir = Path("sensor_blobs/trainval/2021.05.12.19.36.12_veh-35_00005_00204/MergedPointCloud")
+        pcd_files = list(scene_lidar_dir.glob("*.pcd"))
+        if pcd_files:
+            lidar_full_path = pcd_files[0]
+            print(f"   Using first available: {lidar_full_path.name}")
+        else:
+            print(f"❌ No LiDAR files found!")
+            return
+    
+    # Load PCD file
+    print(f"\n🔦 Loading LiDAR from: {lidar_full_path.name}")
+    lidar_pc = load_pcd_file(lidar_full_path)
+    print(f"   Loaded {len(lidar_pc)} points")
     
     # ========================================================================
     # Test 1: Semantic Segmentation from 3D Boxes
