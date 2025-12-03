@@ -23,19 +23,24 @@ echo "Job ID: $SLURM_JOB_ID"
 module load python3.9-anaconda
 eval "$(conda shell.bash hook)"
 conda activate wote
-export PATH=/home/abcarr/.conda/envs/wote/bin:$PATH
+export PATH=/home/vmarri/.conda/envs/wote/bin:$PATH
 
 # Set environment variables
 export NUPLAN_MAP_VERSION="nuplan-maps-v1.0"
 export NUPLAN_MAPS_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/maps"
 export NAVSIM_EXP_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/exp"
 export NAVSIM_DEVKIT_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/"
-export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"
+#export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"
+
+export OPENSCENE_DATA_ROOT="/home/vmarri/rob535-final-project"
+
+
 export PYTHONNOUSERSITE=1
 
 # Navigate to project
-cd /scratch/rob535f25s001_class_root/rob535f25s001_class/vmarri/rob535-final-project
+#cd /scratch/rob535f25s001_class_root/rob535f25s001_class/vmarri/rob535-final-project
 
+cd /home/vmarri/rob535-final-project
 # Verify GPU
 echo "GPU Information:"
 nvidia-smi
