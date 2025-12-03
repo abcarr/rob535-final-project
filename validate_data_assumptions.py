@@ -9,7 +9,7 @@ import pickle
 from pathlib import Path
 
 # Paths
-METADATA_FILE = Path("navsim_logs/trainval/2021.05.12.19.36.12_veh-35_00005_00204/scene_metadata.pkl")
+METADATA_FILE = Path("navsim_logs/trainval/2021.05.12.19.36.12_veh-35_00005_00204.pkl")
 FRAME_IDX = 0
 
 print("=" * 80)
@@ -41,9 +41,9 @@ cam_f0 = frame['cams']['CAM_F0']
 print(f"\nAvailable keys: {cam_f0.keys()}")
 
 # Intrinsics
-intrinsics = np.array(cam_f0['intrinsics'])
+intrinsics = np.array(cam_f0['cam_intrinsic'])
 print(f"\nIntrinsics:")
-print(f"  - Type: {type(cam_f0['intrinsics'])}")
+print(f"  - Type: {type(cam_f0['cam_intrinsic'])}")
 print(f"  - Shape: {intrinsics.shape}")
 print(f"  - Values:\n{intrinsics}")
 
