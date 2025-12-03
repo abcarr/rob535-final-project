@@ -151,12 +151,15 @@ def main():
     
     # Create SceneFilter - required by SceneLoader
     # Note: SCENE_TOKEN is the full scene filename (without .pkl)
-    # log_names should be None to load all logs, or use the log prefix
+    # Extract log name from scene token (first 5 underscore-separated parts)
+    log_name = "_".join(SCENE_TOKEN.split("_")[:5])  # "2021.05.12.19.36.12_veh-35"
+    
     scene_filter = SceneFilter(
         num_history_frames=4,
         num_future_frames=10,
         has_route=True,
-        log_names=None,  # Load all logs - don't filter by log name
+        log_names=[log_name],  # Load only the specific log containing our scene
+        max_scenes=20,  # Limit scenes for faster testing
     )
     
     loader = SceneLoader(
