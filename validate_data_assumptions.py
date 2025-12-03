@@ -92,7 +92,7 @@ print(f"  - Unique classes: {np.unique(gt_names)}")
 
 print(f"\ninstance_tokens:")
 print(f"  - Type: {type(instance_tokens)}")
-print(f"  - Shape: {instance_tokens.shape}")
+print(f"  - Length: {len(instance_tokens)}")
 print(f"  - First token: {instance_tokens[0]}")
 
 # Check box value ranges
