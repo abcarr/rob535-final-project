@@ -116,7 +116,7 @@ lidar_path = frame['lidar_path']
 print(f"\nLiDAR path: {lidar_path}")
 
 # Try to load LiDAR
-scene_dir = Path("sensor_blobs/trainval/2021.05.12.19.36.12_veh-35_00005_00204")
+scene_dir = Path("sensor_blobs/trainval")
 if (scene_dir / lidar_path).exists():
     lidar_pc = np.fromfile(scene_dir / lidar_path, dtype=np.float32).reshape(-1, 5)
     print(f"\n✅ Loaded LiDAR:")
