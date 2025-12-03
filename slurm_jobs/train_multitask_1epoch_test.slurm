@@ -45,7 +45,7 @@ echo "=========================================="
 echo "Multitask Configuration:"
 echo "=========================================="
 echo "use_multitask_learning: true"
-echo "use_semantic: true"
+echo "use_semantic: true (from WoTE_agent.yaml)"
 echo "multitask_weight: 1.0"
 echo "num_img_classes: 7 (0=bg, 1-6=objects)"
 echo "batch_size: 4 (small for quick test)"
@@ -55,9 +55,6 @@ python ./navsim/planning/script/run_training.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.config.use_multitask_learning=true \
-agent.config.use_semantic=true \
-agent.config.multitask_weight=1.0 \
-agent.config.num_img_classes=7 \
 experiment_name=WoTE/multitask_1epoch_test \
 scene_filter=navtrain \
 dataloader.params.batch_size=4 \
