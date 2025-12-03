@@ -17,6 +17,10 @@ import cv2
 from pathlib import Path
 import pickle
 import struct
+import io
+
+# Use nuPlan's LiDAR loader (same as NAVSIM)
+from nuplan.database.utils.pointclouds.lidar import LidarPointCloud
 
 # ============================================================================
 # Configuration
@@ -47,49 +51,17 @@ CLASS_MAP = {
 
 def load_pcd_file(pcd_path):
     """
-    Load a PCD (Point Cloud Data) file.
-    Handles both ASCII and binary formats.
+    Load a PCD (Point Cloud Data) file using nuPlan's loader.
+    This is the SAME method used by NAVSIM dataloader.
     
     Returns:
-        points: [N, 3] array of (x, y, z) coordinates
+        points: [6, N] array (x, y, z, intensity, ring, lidar_id)
     """
-    with open(pcd_path, 'rb') as f:
-        # Read header
-        header_lines = []
-        while True:
-            line = f.readline().decode('ascii').strip()
-            header_lines.append(line)
-            if line.startswith('DATA'):
-                break
-        
-        # Parse header
-        is_ascii = 'ascii' in line.lower()
-        
-        # Find number of points
-        num_points = None
-        fields = []
-        for line in header_lines:
-            if line.startswith('POINTS'):
-                num_points = int(line.split()[1])
-            elif line.startswith('FIELDS'):
-                fields = line.split()[1:]
-        
-        # Read data
-        if is_ascii:
-            # ASCII format
-            data = np.loadtxt(f)
-        else:
-            # Binary format
-            # Assume float32 for x, y, z (typical for PCD)
-            data = np.fromfile(f, dtype=np.float32)
-            # Reshape based on number of fields
-            if len(fields) > 0:
-                data = data.reshape(-1, len(fields))
-        
-        # Extract x, y, z (first 3 columns)
-        points = data[:, :3]
-        
-        return points
+    with open(pcd_path, 'rb') as fp:
+        buffer = io.BytesIO(fp.read())
+    
+    lidar_pc = LidarPointCloud.from_buffer(buffer, "pcd")
+    return lidar_pc.points  # [6, N] array
 
 def load_metadata(metadata_file):
     """Load scene metadata."""
@@ -137,7 +109,7 @@ def get_box_corners_3d(box):
     
     return corners_world
 
-def project_3d_to_2d(points_3d, intrinsics, extrinsics):
+def project_3d_to_2d(points_3d, intrinsics, extrinsics, debug=False):
     """
     Project 3D points in ego/LiDAR frame to 2D camera image.
     
@@ -146,6 +118,7 @@ def project_3d_to_2d(points_3d, intrinsics, extrinsics):
         intrinsics: [3, 3] camera intrinsic matrix
         extrinsics: dict with 'rotation' [3,3] and 'translation' [3]
                     (sensor2lidar transform)
+        debug: if True, print debug information
     
     Returns:
         points_2d: [N, 2] pixel coordinates (u, v)
@@ -158,12 +131,26 @@ def project_3d_to_2d(points_3d, intrinsics, extrinsics):
     R = extrinsics['rotation']
     t = extrinsics['translation']
     
+    if debug:
+        print(f"\n🔍 Projection Debug:")
+        print(f"   Input points range: X=[{points_3d[:, 0].min():.1f}, {points_3d[:, 0].max():.1f}]")
+        print(f"                       Y=[{points_3d[:, 1].min():.1f}, {points_3d[:, 1].max():.1f}]")
+        print(f"                       Z=[{points_3d[:, 2].min():.1f}, {points_3d[:, 2].max():.1f}]")
+        print(f"   R determinant: {np.linalg.det(R):.6f}")
+        print(f"   Translation: {t}")
+    
     # Invert transformation
     R_inv = R.T  # Rotation matrix inverse is transpose
     t_inv = -R_inv @ t
     
     # Transform points
     points_cam = (R_inv @ points_3d.T).T + t_inv
+    
+    if debug:
+        print(f"   Camera frame points: X=[{points_cam[:, 0].min():.1f}, {points_cam[:, 0].max():.1f}]")
+        print(f"                        Y=[{points_cam[:, 1].min():.1f}, {points_cam[:, 1].max():.1f}]")
+        print(f"                        Z=[{points_cam[:, 2].min():.1f}, {points_cam[:, 2].max():.1f}]")
+        print(f"   Points with Z>0: {(points_cam[:, 2] > 0).sum()}/{len(points_cam)}")
     
     # Project to image plane
     # [u, v, d] = K @ [x, y, z]
@@ -379,10 +366,14 @@ def main():
             print(f"❌ No LiDAR files found!")
             return
     
-    # Load PCD file
+    # Load PCD file using nuPlan's loader (same as NAVSIM)
     print(f"\n🔦 Loading LiDAR from: {lidar_full_path.name}")
-    lidar_pc = load_pcd_file(lidar_full_path)
+    lidar_pc_raw = load_pcd_file(lidar_full_path)  # [6, N]
+    lidar_pc = lidar_pc_raw[:3, :].T  # Extract x, y, z → [N, 3]
     print(f"   Loaded {len(lidar_pc)} points")
+    print(f"   Range: X=[{lidar_pc[:, 0].min():.1f}, {lidar_pc[:, 0].max():.1f}]m")
+    print(f"          Y=[{lidar_pc[:, 1].min():.1f}, {lidar_pc[:, 1].max():.1f}]m")
+    print(f"          Z=[{lidar_pc[:, 2].min():.1f}, {lidar_pc[:, 2].max():.1f}]m")
     
     # ========================================================================
     # Test 1: Semantic Segmentation from 3D Boxes
@@ -390,6 +381,15 @@ def main():
     print("\n" + "=" * 80)
     print("TEST 1: Semantic Segmentation from 3D Boxes")
     print("=" * 80)
+    
+    # Test projection on first box to debug
+    if len(annotations['gt_boxes']) > 0:
+        test_box = annotations['gt_boxes'][0]
+        test_corners = get_box_corners_3d(test_box)
+        test_2d, test_depths, test_valid = project_3d_to_2d(
+            test_corners, cam_intrinsics, cam_extrinsics, debug=True
+        )
+        print(f"   First box test: {test_valid.sum()}/8 corners visible")
     
     semantic_mask, sem_coverage, sem_visible = generate_semantic_mask_from_boxes(
         annotations, cam_intrinsics, cam_extrinsics, (IMG_HEIGHT, IMG_WIDTH)
