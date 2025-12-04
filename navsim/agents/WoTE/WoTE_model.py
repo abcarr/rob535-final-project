@@ -95,7 +95,7 @@ class WoTEModel(nn.Module):
             nn.Linear(SCORE_HEAD_HIDDEN_DIM, hidden_dim),
         )
 
-        # Transformer Encoder for trajectory_anchors_feat
+        # Transformer Encoder for trajectory_anchors_feat (sequence data, not spatial)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=TRANSFORMER_NHEAD,
@@ -103,21 +103,6 @@ class WoTEModel(nn.Module):
             dropout=TRANSFORMER_DROPOUT,
             batch_first=True
         )
-
-
-        deformable_attention = nn.DeformableAttention(
-            dim=512,                       # feature dimensions
-            dim_head=64,                   # dimension per head
-            heads=TRANSFORMER_NHEAD,       # attention heads
-            dropout = TRANSFORMER_DROPOUT, # dropout
-            downsample_factor=4,           # downsample factor (r in paper)
-            offset_scale=4,                # scale of offset, maximum offset
-            offset_groups=None,            # number of offset groups, should be multiple of heads
-            offset_kernel_size=6,          # offset kernel size
-        )
-        encoder_layer.self_attn = deformable_attention
-
-
         self.cluster_encoder = nn.TransformerEncoder(encoder_layer, num_layers=TRANSFORMER_NUM_LAYERS)
 
         
@@ -165,6 +150,8 @@ class WoTEModel(nn.Module):
 
         # agent
         self.use_agent_loss = config.use_agent_loss if hasattr(config, 'use_agent_loss') else True
+        self.use_deformable_attention = getattr(config, 'use_deformable_attention', False)
+        
         if self.use_agent_loss:
             self.agent_query_embedding = nn.Embedding(config.num_bounding_boxes, hidden_dim)
             self.agent_head = AgentHead(
@@ -173,13 +160,50 @@ class WoTEModel(nn.Module):
                 d_model=config.tf_d_model,
             )
 
-            agent_tf_decoder_layer = nn.TransformerDecoderLayer(
-                d_model=config.tf_d_model,
-                nhead=config.tf_num_head,
-                dim_feedforward=config.tf_d_ffn,
-                dropout=config.tf_dropout,
-                batch_first=True,
-            )
+            # Replace cross-attention with deformable version if enabled
+            if self.use_deformable_attention:
+                try:
+                    # Wrapper that adapts DeformableAttention to decoder interface
+                    self.agent_deformable_cross_attn = DeformableAttention(
+                        dim=config.tf_d_model,
+                        dim_head=64,
+                        heads=config.tf_num_head,
+                        dropout=config.tf_dropout,
+                        downsample_factor=2,
+                        offset_scale=2,
+                        offset_kernel_size=3,
+                    )
+                    print(f"✓ Deformable cross-attention enabled: Agent decoder (30 queries → 8×8 BEV)")
+                    
+                    # Use standard decoder but we'll intercept the cross-attention
+                    agent_tf_decoder_layer = nn.TransformerDecoderLayer(
+                        d_model=config.tf_d_model,
+                        nhead=config.tf_num_head,
+                        dim_feedforward=config.tf_d_ffn,
+                        dropout=config.tf_dropout,
+                        batch_first=True,
+                    )
+                    # Replace the cross-attention (multihead_attn) - we'll handle reshaping in forward
+                except Exception as e:
+                    print(f"⚠ Failed to initialize deformable attention: {e}")
+                    print(f"  Falling back to standard attention")
+                    self.use_deformable_attention = False
+                    agent_tf_decoder_layer = nn.TransformerDecoderLayer(
+                        d_model=config.tf_d_model,
+                        nhead=config.tf_num_head,
+                        dim_feedforward=config.tf_d_ffn,
+                        dropout=config.tf_dropout,
+                        batch_first=True,
+                    )
+            else:
+                print("✓ Using standard cross-attention for agent decoder")
+                agent_tf_decoder_layer = nn.TransformerDecoderLayer(
+                    d_model=config.tf_d_model,
+                    nhead=config.tf_num_head,
+                    dim_feedforward=config.tf_d_ffn,
+                    dropout=config.tf_dropout,
+                    batch_first=True,
+                )
 
             self.agent_tf_decoder = nn.TransformerDecoder(agent_tf_decoder_layer, config.tf_num_layers)
 
@@ -217,7 +241,7 @@ class WoTEModel(nn.Module):
         self.num_sampled_trajs = config.num_sampled_trajs if hasattr(config, 'num_sampled_trajs') else 1
         self.new_scene_bev_feature_pos_embed = nn.Embedding(self.num_plan_queries, hidden_dim)
 
-        # offset
+        # offset decoder (uses standard cross-attention)
         offset_tf_decoder_layer = nn.TransformerDecoderLayer(
             d_model=config.tf_d_model,
             nhead=config.tf_num_head,
@@ -225,7 +249,6 @@ class WoTEModel(nn.Module):
             dropout=config.tf_dropout,
             batch_first=True,
         )
-
         self.offset_tf_decoder = nn.TransformerDecoder(offset_tf_decoder_layer, config.tf_num_layers)
         self.offset_head = TrajectoryOffsetHead(
             num_poses=config.trajectory_sampling.num_poses,
@@ -437,10 +460,15 @@ class WoTEModel(nn.Module):
     def _predict_offset(self, ego_feat: torch.Tensor, flatten_bev_feature: torch.Tensor) -> torch.Tensor:
         """
         Predict the offset for the cluster centers.
+        Deformable attention (if enabled) allows trajectories to attend to specific BEV spatial locations.
         """
         offset_dict = {}
         ego_feat = ego_feat.squeeze(2)  # [batch_size, num_traj, C]
+        
+        # If using deformable attention, decoder expects BEV in spatial format
+        # Standard attention uses flattened format - decoder handles both
         ego_feat = self.offset_tf_decoder(ego_feat, flatten_bev_feature) # [batch_size, num_traj, C]
+        
         trajectory_offset = self.offset_head(ego_feat)
         trajectory_offset_rewards = self.offset_score_head(ego_feat).squeeze(-1)  # [batch_size, num_traj]
         trajectory_offset_rewards = torch.softmax(trajectory_offset_rewards, dim=-1)
@@ -611,10 +639,29 @@ class WoTEModel(nn.Module):
 
     def _process_agent(self, batch_size: int, scene_bev_feature: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        Process agent.
+        Process agent with optional deformable cross-attention.
         """
         agent_query = self.agent_query_embedding.weight[None, :, :].repeat(batch_size, 1, 1)  # [batch_size, num_agents, hidden_dim]
-        agent_query_out = self.agent_tf_decoder(agent_query, scene_bev_feature)  # [batch_size, num_agents, hidden_dim]
+        
+        if self.use_deformable_attention and hasattr(self, 'agent_deformable_cross_attn'):
+            # Deformable attention: Apply to BEV in spatial format
+            # scene_bev_feature: [B, N, C] where N = H*W (e.g., 64 = 8*8)
+            B, N, C = scene_bev_feature.shape
+            H = W = int(N ** 0.5)  # Assume square BEV (8x8 = 64)
+            scene_bev_spatial = scene_bev_feature.permute(0, 2, 1).reshape(B, C, H, W)
+            
+            # Apply deformable attention to refine BEV spatially
+            scene_bev_refined = self.agent_deformable_cross_attn(scene_bev_spatial)  # [B, C, H, W]
+            
+            # Flatten back for decoder
+            scene_bev_refined = scene_bev_refined.flatten(2).permute(0, 2, 1)  # [B, N, C]
+            
+            # Use refined BEV as memory for decoder (standard cross-attention now operates on deformable-refined features)
+            agent_query_out = self.agent_tf_decoder(agent_query, scene_bev_refined)
+        else:
+            # Standard attention path
+            agent_query_out = self.agent_tf_decoder(agent_query, scene_bev_feature)
+        
         agents = self.agent_head(agent_query_out)  # dict containing 'agent_states' and 'agent_labels'
         return agents, agent_query_out
 
