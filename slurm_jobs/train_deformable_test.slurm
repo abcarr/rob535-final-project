@@ -52,22 +52,27 @@ echo "BEV size: 8×8 spatial grid"
 echo "Agent queries: 30"
 echo "Attention type: Sparse spatial (downsample_factor=2)"
 echo "batch_size: 16"
-echo "max_epochs: 3 (quick test)"
-echo "validation: every 2 epochs (faster)"
+echo "dataset: 20% (quick checkpoint test)"
+echo "max_epochs: 3"
+echo "validation: every epoch"
 echo "=========================================="
 echo ""
 python ./navsim/planning/script/run_training.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.config.use_deformable_attention=true \
-experiment_name=WoTE/deformable_attn_test \
+experiment_name=WoTE/deformable_checkpoint_test \
 scene_filter=navtrain \
 dataloader.params.batch_size=16 \
 dataloader.params.num_workers=8 \
 dataloader.params.prefetch_factor=4 \
 +dataloader.params.persistent_workers=true \
-trainer.params.max_epochs=1 \
+trainer.params.max_epochs=3 \
 trainer.params.check_val_every_n_epoch=1 \
+trainer.params.limit_train_batches=0.2 \
+trainer.params.limit_val_batches=0.2 \
+trainer.checkpoint.save_top_k=-1 \
+trainer.checkpoint.save_last=true \
 split=trainval
 
 echo "Training completed at: $(date)"
