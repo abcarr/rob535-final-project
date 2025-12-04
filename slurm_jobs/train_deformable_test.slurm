@@ -61,7 +61,7 @@ python ./navsim/planning/script/run_training.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.config.use_deformable_attention=true \
-experiment_name=WoTE/deformable_checkpoint_test \
+experiment_name=WoTE/checkpoint_test_deformable \
 scene_filter=navtrain \
 dataloader.params.batch_size=16 \
 dataloader.params.num_workers=8 \
@@ -80,10 +80,10 @@ echo "Training completed at: $(date)"
 # List checkpoint files
 echo ""
 echo "Checkpoint files created:"
-ls -lh exp/WoTE/deformable_attn_test/lightning_logs/version_0/checkpoints/ 2>/dev/null || echo "No checkpoints found (job may have failed)"
+ls -lh exp/WoTE/checkpoint_test_deformable/lightning_logs/version_*/checkpoints/ 2>/dev/null || echo "No checkpoints found (job may have failed)"
 
 # Check if training logs exist
-if [ -f exp/WoTE/deformable_attn_test/lightning_logs/version_0/events.out.tfevents.* ]; then
+if compgen -G "exp/WoTE/checkpoint_test_deformable/lightning_logs/version_*/events.out.tfevents.*" > /dev/null; then
     echo "✓ TensorBoard logs created successfully"
 fi
 
