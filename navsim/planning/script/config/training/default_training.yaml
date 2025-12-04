@@ -27,6 +27,11 @@ dataloader:
     prefetch_factor: 2  # number of samples loaded in advance by each worker
 
 trainer:
+  checkpoint:
+    save_top_k: 1  # -1 to save all, 1 to save best only, 3 to save top 3
+    monitor: val/traj_offset_loss_epoch  # metric to monitor for best checkpoint
+    mode: min  # 'min' for losses (lower is better), 'max' for accuracy
+    save_last: true  # always save last.ckpt for resuming
   params:
     max_epochs: 20  # maximum number of training epochs
     check_val_every_n_epoch: 5  # run validation set every n training epochs
