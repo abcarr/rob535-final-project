@@ -11,5 +11,7 @@ trajectory_sampling:
   time_horizon: 4
   interval_length: 0.5
 
+use_deformable_attention: false
+
 checkpoint_path: null
 lr: 1e-4
