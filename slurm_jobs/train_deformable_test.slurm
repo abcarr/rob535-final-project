@@ -40,11 +40,6 @@ cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-pro
 echo "GPU Information:"
 nvidia-smi
 
-# Install deformable-attention package if not already installed
-echo "Checking deformable-attention package..."
-pip show deformable-attention || pip install deformable-attention
-echo ""
-
 # Run training with DEFORMABLE ATTENTION (3 epochs for quick test)
 echo "Starting DEFORMABLE ATTENTION test at: $(date)"
 echo ""
@@ -68,8 +63,8 @@ agent.config.use_deformable_attention=true \
 experiment_name=WoTE/deformable_attn_test \
 scene_filter=navtrain \
 dataloader.params.batch_size=16 \
-dataloader.params.num_workers=6 \
-dataloader.params.prefetch_factor=3 \
+dataloader.params.num_workers=8 \
+dataloader.params.prefetch_factor=4 \
 +dataloader.params.persistent_workers=true \
 trainer.params.max_epochs=1 \
 trainer.params.check_val_every_n_epoch=1 \
