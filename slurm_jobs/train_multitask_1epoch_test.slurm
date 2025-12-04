@@ -64,7 +64,7 @@ scene_filter=navtrain \
 dataloader.params.batch_size=16 \
 dataloader.params.num_workers=4 \
 dataloader.params.prefetch_factor=2 \
-dataloader.params.persistent_workers=true \
++dataloader.params.persistent_workers=true \
 trainer.params.max_epochs=10 \
 trainer.params.check_val_every_n_epoch=1 \
 split=trainval
@@ -78,4 +78,6 @@ ls -lh exp/WoTE/multitask_weight1_10epochs/lightning_logs/version_0/checkpoints/
 # Check if training logs exist
 if [ -f exp/WoTE/multitask_weight1_10epochs/lightning_logs/version_0/events.out.tfevents.* ]; then
     echo "TensorBoard logs created successfully"
-fiho "Job finished at: $(date)"
+fi
+
+echo "Job finished at: $(date)"
