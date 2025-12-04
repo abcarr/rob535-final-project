@@ -11,6 +11,8 @@ from navsim.common.enums import StateSE2Index
 import torchvision.models as models
 import torch.nn.functional as F
 
+from deformable_attention import DeformableAttention
+
 import os
 from datetime import datetime
 from navsim.agents.WoTE.WoTE_targets import BoundingBox2DIndex
@@ -101,8 +103,24 @@ class WoTEModel(nn.Module):
             dropout=TRANSFORMER_DROPOUT,
             batch_first=True
         )
+
+
+        deformable_attention = nn.DeformableAttention(
+            dim=512,                       # feature dimensions
+            dim_head=64,                   # dimension per head
+            heads=TRANSFORMER_NHEAD,       # attention heads
+            dropout = TRANSFORMER_DROPOUT, # dropout
+            downsample_factor=4,           # downsample factor (r in paper)
+            offset_scale=4,                # scale of offset, maximum offset
+            offset_groups=None,            # number of offset groups, should be multiple of heads
+            offset_kernel_size=6,          # offset kernel size
+        )
+        encoder_layer.self_attn = deformable_attention
+
+
         self.cluster_encoder = nn.TransformerEncoder(encoder_layer, num_layers=TRANSFORMER_NUM_LAYERS)
 
+        
         # latent world model
         self.num_scenes = self.num_plan_queries + 1  # including the ego feat and action
         self.scene_position_embedding = nn.Embedding(self.num_scenes, hidden_dim)
