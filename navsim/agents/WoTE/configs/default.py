@@ -178,3 +178,6 @@ class WoTEConfig:
     use_multitask_learning: bool = False  # Toggle multitask on/off
     multitask_weight: float = 1.0  # Weight for multitask loss term
     num_img_classes: int = 7  # Number of semantic classes (0=background + 6 object types)
+
+    # Deformable Attention (Sparse Spatial Attention for Agent Decoder)
+    use_deformable_attention: bool = False  # Apply deformable attention to BEV before agent decoder
