@@ -57,7 +57,7 @@ python ./navsim/planning/script/run_pdm_score.py \
 agent=WoTE_agent \
 agent.config._target_=navsim.agents.WoTE.configs.default.WoTEConfig \
 agent.config.use_deformable_attention=true \
-agent.checkpoint_path=/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/final_models/deformable_ablation_epoch=10.ckpt \
+agent.checkpoint_path=/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/final_models/deformable_ablation_epoch_10.ckpt \
 experiment_name=eval/deformable_ablation \
 split=test \
 scene_filter=test \
