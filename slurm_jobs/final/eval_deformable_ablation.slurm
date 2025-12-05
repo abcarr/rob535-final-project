@@ -3,9 +3,9 @@
 #SBATCH --account=rob535f25s001_class
 #SBATCH --partition=spgpu
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=100GB
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a40:1
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/eval_deformable_ablation_%j.out
 #SBATCH --error=logs/eval_deformable_ablation_%j.err
