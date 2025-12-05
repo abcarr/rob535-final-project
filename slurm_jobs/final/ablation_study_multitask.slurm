@@ -41,6 +41,10 @@ export NAVSIM_DEVKIT_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class
 export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"
 export PYTHONNOUSERSITE=1
 
+# Force Python to use code from current directory, not user's installed packages
+export PYTHONPATH="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project:${PYTHONPATH}"
+unset PYTHONUSERBASE
+
 # Verify GPU
 echo "GPU Information:"
 nvidia-smi
