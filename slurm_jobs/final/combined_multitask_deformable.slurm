@@ -5,33 +5,38 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=100GB
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a40:1
 #SBATCH --time=08:00:00
-#SBATCH --output=logs/combined_multitask_deformable_%j.out
-#SBATCH --error=logs/combined_multitask_deformable_%j.err
+#SBATCH --output=/scratch/rob535f25s001_class_root/rob535f25s001_class/%u/rob535-final-project/logs/combined_multitask_deformable_%j.out
+#SBATCH --error=/scratch/rob535f25s001_class_root/rob535f25s001_class/%u/rob535-final-project/logs/combined_multitask_deformable_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=abcarr@umich.edu
+#SBATCH --mail-user=%u@umich.edu
 
-# Navigate to project first
+# Detect current user
+CURRENT_USER=${USER}
+
+# Create user's logs directory
+mkdir -p /scratch/rob535f25s001_class_root/rob535f25s001_class/${CURRENT_USER}/rob535-final-project/logs
+
+# Navigate to abcarr's project directory (everyone runs from here)
 cd /scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project
-
-# Create logs directory
-mkdir -p logs
 
 echo "Job started at: $(date)"
 echo "Running on node: $(hostname)"
 echo "Job ID: $SLURM_JOB_ID"
+echo "User: $CURRENT_USER"
+echo "Working directory: $(pwd)"
 
 # Load modules and activate environment
 module load python3.9-anaconda
 eval "$(conda shell.bash hook)"
 conda activate wote
-export PATH=/home/abcarr/.conda/envs/wote/bin:$PATH
+export PATH=/home/${CURRENT_USER}/.conda/envs/wote/bin:$PATH
 
 # Set environment variables
 export NUPLAN_MAP_VERSION="nuplan-maps-v1.0"
 export NUPLAN_MAPS_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/maps"
-export NAVSIM_EXP_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/exp"
+export NAVSIM_EXP_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/${CURRENT_USER}/rob535-final-project/exp"
 export NAVSIM_DEVKIT_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/"
 export OPENSCENE_DATA_ROOT="/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project"
 export PYTHONNOUSERSITE=1
