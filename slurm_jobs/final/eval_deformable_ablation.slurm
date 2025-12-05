@@ -60,7 +60,7 @@ agent.config.use_deformable_attention=true \
 agent.checkpoint_path=/scratch/rob535f25s001_class_root/rob535f25s001_class/abcarr/rob535-final-project/final_models/deformable_ablation_epoch_10.ckpt \
 experiment_name=eval/deformable_ablation \
 split=test \
-scene_filter=test \
+scene_filter=navtest \
 metric_cache_path=${NAVSIM_EXP_ROOT}/metric_cache
 
 echo ""
