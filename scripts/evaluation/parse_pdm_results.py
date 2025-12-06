@@ -45,12 +45,12 @@ def parse_pdm_results(csv_path):
     print("-" * 80)
     
     metrics = [
-        ('no_at_fault_collisions', 'No At-Fault Collisions'),
-        ('drivable_area_compliance', 'Drivable Area Compliance'),
+        ('no_at_fault_collisions', 'NC (No At-Fault Collision)'),
+        ('drivable_area_compliance', 'DAC (Drivable Area Compliance)'),
         ('driving_direction_compliance', 'Driving Direction Compliance'),
-        ('ego_progress', 'Ego Progress'),
-        ('time_to_collision_within_bound', 'Time to Collision Within Bound'),
-        ('comfort', 'Comfort'),
+        ('ego_progress', 'EP (Ego Progress)'),
+        ('time_to_collision_within_bound', 'TTC (Time-to-Collision)'),
+        ('comfort', 'Comf. (Comfort)'),
     ]
     
     for metric_key, metric_name in metrics:
