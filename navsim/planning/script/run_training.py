@@ -117,10 +117,25 @@ def main(cfg: DictConfig) -> None:
 
     logger.info("Building Trainer")
     trainer_params = cfg.trainer.params
+    
+    # Build checkpoint callback from config if provided
+    callbacks = agent.get_training_callbacks()
+    if hasattr(cfg.trainer, 'checkpoint') and cfg.trainer.checkpoint is not None:
+        from pytorch_lightning.callbacks import ModelCheckpoint
+        checkpoint_callback = ModelCheckpoint(
+            save_top_k=cfg.trainer.checkpoint.get('save_top_k', 1),
+            monitor=cfg.trainer.checkpoint.get('monitor', None),
+            mode=cfg.trainer.checkpoint.get('mode', 'min'),
+            save_last=cfg.trainer.checkpoint.get('save_last', True),
+            filename=cfg.trainer.checkpoint.get('filename', None),
+        )
+        callbacks.append(checkpoint_callback)
+        logger.info(f"Checkpoint callback configured: save_top_k={checkpoint_callback.save_top_k}, monitor={checkpoint_callback.monitor}")
+    
     # trainer_params['strategy'] = "ddp_find_unused_parameters_true" #TODO
     trainer = pl.Trainer(
                 **trainer_params, 
-                callbacks=agent.get_training_callbacks(),
+                callbacks=callbacks,
                 )
 
     logger.info("Starting Training")

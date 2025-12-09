@@ -17,7 +17,7 @@ from navsim.planning.training.abstract_feature_target_builder import (
 from navsim.common.dataclasses import Scene
 import timm, cv2
 from navsim.agents.WoTE.WoTE_model import WoTEModel
-from navsim.agents.WoTE.WoTE_loss import compute_wote_loss
+from navsim.agents.WoTE.WoTE_loss import compute_wote_loss, compute_multitask_loss
 from navsim.agents.WoTE.WoTE_targets import WoTETargetBuilder
 from navsim.agents.WoTE.WoTE_features import WoTEFeatureBuilder
 from navsim.common.dataclasses import AgentInput, Trajectory, SensorConfig
@@ -115,7 +115,17 @@ class WoTEAgent(AbstractAgent):
         targets: Dict[str, torch.Tensor],
         predictions: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
-        return compute_wote_loss(targets, predictions, self.config)
+        # Base WoTE losses (trajectory, agents, BEV map)
+        loss_dict = compute_wote_loss(targets, predictions, self.config)
+        
+        # Add multitask loss if enabled
+        if self.config.use_multitask_learning:
+            multitask_loss_dict = compute_multitask_loss(
+                self.WoTE_model, targets, predictions, self.config
+            )
+            loss_dict.update(multitask_loss_dict)
+        
+        return loss_dict
 
     def get_optimizers(self) -> Union[Optimizer, Dict[str, Union[Optimizer, LRScheduler]]]:
         use_coslr_opt = self.config.use_coslr_opt if hasattr(self.config, 'use_coslr_opt') else False

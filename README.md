@@ -1,31 +1,61 @@
-# 🚗 End-to-End Driving with Online Trajectory Evaluation via BEV World Model (ICCV2025)
+# Investigating Temporal Modeling, Efficient Attention, and Adaptive Loss Balancing as Improvements to WoTE
 
-Yingyan Li*, Yuqi Wang*, Yang Liu, Jiawei He, Lue Fan† and Zhaoxiang Zhang†
-[[📄 Paper (arXiv:2504.01941)]](https://arxiv.org/abs/2504.01941)
+**ROB 535 Final Project - Fall 2025**
 
-We present **WoTE**, an end-to-end autonomous driving framework that leverages a BEV-based world model to predict future agent states, enabling online trajectory evaluation and selection.
+This repository contains an study of architectural enhancements to the **World Model for Trajectory Evaluation (WoTE)** framework. We investigate three proposed improvements: temporal BEV fusion via ConvGRU, deformable attention, and multi-task learning with uncertainty-weighted loss balancing. While temporal fusion was fully implemented, HPC resource constraints prevented its evaluation. The two tested enhancements, deformable attention and multi-task learning, both degraded performance compared to the baseline.
+
+**Original WoTE Paper:** Yingyan Li*, Yuqi Wang*, Yang Liu, Jiawei He, Lue Fan† and Zhaoxiang Zhang† [[📄 arXiv:2504.01941]](https://arxiv.org/abs/2504.01941)  
+**Original Repository:** [[🔗 liyingyanUCAS/WoTE]](https://github.com/liyingyanUCAS/WoTE)
+
+> **Note:** Dataset preparation, installation, and baseline training instructions are adapted from the original WoTE repository.
 
 <p align="center">
-  <img src="assets/fig1.jpg" alt="WoTE Framework" width="1000"/>
+  <img src="assets/architecture.png" alt="Baseline and Enhanced WoTE Architecture" width="1000"/>
 </p>
 
+*Figure: Comparison of baseline WoTE (top) and our enhanced architecture (bottom) with three proposed modifications: ConvGRU Temporal Fusion, Deformable Attention, and Multi-Task Learning with Uncertainty-Weighted Loss.*
+
 ---
-## 📊 1. Results & Checkpoints
 
-| Method     | NC   | DAC  | EP   | TTC  | Comfort | PDMS | Training Time | GPU Memory | Checkpoint |
-|:----------:|:----:|:----:|:----:|:----:|:-------:|:----:|:--------------:|:-----------:|:----------:|
-| **WoTE**   | **98.5** | **96.8** | **81.9** | **94.9** | **99.9**  | **88.3** | **3 hrs** | **22 GB**   | [📥 Download](https://drive.google.com/drive/folders/1dIHK8nXkzhIhGCRQOpKibaizwH-7fHqs?usp=sharing) |
+## 📊 Performance Comparison
 
-*Training conducted on 8 NVIDIA L20 GPUs.*  
+| Model Configuration | NC | DAC | EP | TTC | Comf. | PDM-Score | Checkpoint |
+|:-------------------:|:--:|:---:|:--:|:---:|:-----:|:---------:|:----------:|
+| **Baseline WoTE** | **85.2%** | **80.3%** | **57.5%** | **74.7%** | **99.2%** | **59.9%** | [📥 Download](#checkpoints) |
+| **Deformable Attention** | 83.4% | 81.8% | 56.8% | 73.0% | 99.9% | 59.3% | [📥 Download](#checkpoints) |
+| **Multitask Learning** | 77.9% | 75.5% | 51.6% | 66.1% | 99.6% | 51.8% | [📥 Download](#checkpoints) |
+| **Combined (Both)** | 82.2% | 80.3% | 54.8% | 71.1% | 99.8% | 57.2% | [📥 Download](#checkpoints) |
 
+*All models trained on NAVSIM OpenScene split for 10 epochs on single NVIDIA A40 GPU.*  
 
 > **Legend**  
-> • NC: No Collision  
+> • NC: No At-Fault Collision  
 > • DAC: Drivable Area Compliance  
 > • EP: Ego Progress  
-> • TTC: Time to Collision  
-> • Comfort: Comfort
-> • PDMS: Predictive Driver Model Score
+> • TTC: Time-to-Collision  
+> • Comf.: Comfort  
+> • PDM-Score: Planning Distance Metric Score (overall metric)
+
+---
+
+## 🔬 1. Architectural Enhancements
+
+We extend the baseline WoTE architecture with three proposed enhancements:
+
+### Enhancement 1: Temporal BEV Fusion (ConvGRU)
+- **Goal**: Enable velocity estimation and occlusion reasoning
+- **Implementation**: Convolutional GRU aggregates 4 historical BEV frames with ego-motion compensation
+- **Status**: **Implemented but not evaluated** - HPC storage limitations prevented training. Temporal fusion requires storing 4× the dataset size, exceeding our cluster allocation. The implementation is complete and available in `navsim/agents/WoTE/modules/temporal_fusion.py`.
+
+### Enhancement 2: Deformable Attention
+- **Goal**: Focus computation on spatially salient BEV regions
+- **Implementation**: Sparse attention with K=8 learned sampling points (vs. full 8×8 grid)
+- **Result**: Marginal degradation (-0.58% PDM-Score)
+
+### Enhancement 3: Multi-Task Learning
+- **Goal**: Regularize backbone with auxiliary supervision
+- **Implementation**: 3 auxiliary heads (semantic segmentation, instance offsets, depth) with uncertainty-weighted loss
+- **Result**: Significant degradation (-8.08% PDM-Score)
 
 ---
 
@@ -115,29 +145,118 @@ export OPENSCENE_DATA_ROOT="$HOME/navsim_workspace/dataset"
 
 ## 🚀 4. Training & Evaluation
 
-Update paths in:
+**Note:** This project was developed on University of Michigan's Great Lakes HPC cluster using SLURM job scheduling.
 
-```
-navsim/agents/WoTE/configs/default.py
-```
+### SLURM Job Scripts
 
-Then launch training:
+All training and evaluation was performed via SLURM batch jobs. Pre-configured scripts are available in `slurm_jobs/final/`:
+
+**Training Scripts:**
+- `resume_baseline_wote.slurm` - Baseline WoTE training
+- `resume_deformable_ablation.slurm` - Deformable attention variant
+- `resume_multitask_ablation.slurm` - Multi-task learning variant
+- `resume_combined_multitask_deformable.slurm` - Combined enhancements
+
+**Evaluation Scripts:**
+- `eval_baseline_wote.slurm` - Evaluate baseline model
+- `eval_deformable_ablation.slurm` - Evaluate deformable attention
+- `eval_multitask_ablation.slurm` - Evaluate multi-task learning
+- `eval_combined_multitask_deformable.slurm` - Evaluate combined model
+
+### Running on SLURM
 
 ```bash
-bash scripts/training/run_wote.sh
+# Submit training job
+cd slurm_jobs/final
+sbatch resume_baseline_wote.slurm
+
+# Submit evaluation job
+sbatch eval_baseline_wote.slurm
+
+# Monitor job status
+squeue -u $USER
 ```
 
-Evaluation:
+### Running Locally (without SLURM)
+
+Update paths in `navsim/agents/WoTE/configs/default.py`, then:
+
 ```bash
-bash scripts/evaluation/eval_wote.sh
+# Training
+python navsim/planning/script/run_training.py \
+  agent=WoTE_agent \
+  experiment_name=WoTE/baseline_wote \
+  scene_filter=navtrain \
+  split=trainval
+
+# Evaluation
+python navsim/planning/script/run_pdm_score.py \
+  agent=WoTE_agent \
+  agent.checkpoint_path=exp/WoTE/baseline_wote/final_models/baseline_wote_epoch_10.ckpt \
+  split=test
 ```
----
-
 
 ---
 
-## 🔍 5. More from Us
+## 📊 5. Results & Model Checkpoints
 
-If you're interested in **world models** for autonomous driving, feel free to check out our related work:
+### <a name="checkpoints"></a>📥 Model Checkpoints
 
-- [**LAW (ICLR 2025)**](https://github.com/BraveGroup/LAW): Using latent world models for self-supervised feature learning in end-to-end autonomous driving.
+Trained checkpoints are hosted externally:
+
+**🔗 [Download All Model Checkpoints (Google Drive)](https://drive.google.com/drive/folders/1yTPb9xEUMbPZNXhhFSHJ4axXCqX7mRna?usp=sharing)**
+
+The folder contains:
+- `baseline_wote_epoch_10.ckpt` - Baseline WoTE
+- `deformable_ablation_epoch_10.ckpt`- Deformable attention
+- `multitask_ablation_epoch_10.ckpt` - With multitask learning
+- `eval_combined_multitask_deformable_epoch_10.ckpt` - Both enhancements
+
+### To Use Downloaded Checkpoints
+
+```bash
+# Place checkpoint in final_models/ directory
+mkdir -p final_models
+mv baseline_wote_epoch_10.ckpt final_models/
+
+# Run evaluation
+python navsim/planning/script/run_pdm_score.py \
+  agent=WoTE_agent \
+  agent.checkpoint_path=final_models/baseline_wote_epoch_10.ckpt \
+  split=test
+```
+
+---
+
+## 📄 6. Citation & Acknowledgments
+
+If you use this ablation study or find the negative results valuable for your research:
+
+```bibtex
+@misc{wote_ablation2025,
+  title={Investigating Temporal Modeling, Efficient Attention, and Adaptive Loss Balancing as Improvements to WoTE},
+  author={Carr, Alexander and Drosos, Matthew and Marri, Vidya},
+  year={2025},
+  institution={University of Michigan}
+}
+```
+
+**Original WoTE Paper:**
+```bibtex
+@article{li2025wote,
+  title={End-to-End Driving with Online Trajectory Evaluation via BEV World Model},
+  author={Li, Yingyan and Wang, Yuqi and Liu, Yang and He, Jiawei and Fan, Lue and Zhang, Zhaoxiang},
+  journal={arXiv preprint arXiv:2504.01941},
+  year={2025}
+}
+```
+
+### Acknowledgments
+
+This project builds upon the following open-source repositories:
+
+- **WoTE Implementation:** [liyingyanUCAS/WoTE](https://github.com/liyingyanUCAS/WoTE) (Apache-2.0 License)
+- **ConvGRU Module:** [happyjin/ConvGRU-pytorch](https://github.com/happyjin/ConvGRU-pytorch) (MIT License)
+- **Deformable Attention:** [lucidrains/deformable-attention](https://github.com/lucidrains/deformable-attention) (MIT License)
+
+We thank the authors for making their code publicly available.

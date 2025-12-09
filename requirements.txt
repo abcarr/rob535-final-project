@@ -45,5 +45,7 @@ pytorch-lightning==2.2.1
 tensorboard==2.16.2
 protobuf==4.25.3
 
+deformable-attention
+
 notebook
 timm

@@ -2,6 +2,7 @@ from typing import Any, List, Dict, Union
 import torch
 import numpy as np
 from torchvision import transforms
+import os
 
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
 from navsim.common.enums import BoundingBoxIndex, LidarIndex
@@ -57,6 +58,33 @@ class WoTEFeatureBuilder(AbstractFeatureBuilder):
         :param is_temporal: whether to extract multi-frame sequence
         :return: stitched front view image as torch tensor
         """
+        # Debug check for camera data availability
+        if agent_input.cameras is None:
+            openscene_root = os.environ.get('OPENSCENE_DATA_ROOT', 'NOT SET')
+            sensor_path = f"{openscene_root}/sensor_blobs"
+            raise ValueError(
+                "Camera data is None! Make sure:\n"
+                "  1. sensor_blobs are accessible and readable\n"
+                "  2. SensorConfig includes cameras (use build_tfu_sensors())\n"
+                "  3. OPENSCENE_DATA_ROOT is set correctly\n"
+                f"  Current OPENSCENE_DATA_ROOT: {openscene_root}\n"
+                f"  Expected sensor_blobs path: {sensor_path}\n"
+                f"  Token/log file: {getattr(agent_input, 'token', 'UNKNOWN')}\n"
+                f"  agent_input.cameras: {agent_input.cameras}"
+            )
+        
+        if len(agent_input.cameras) == 0:
+            openscene_root = os.environ.get('OPENSCENE_DATA_ROOT', 'NOT SET')
+            sensor_path = f"{openscene_root}/sensor_blobs"
+            raise ValueError(
+                "Camera data list is empty! The dataloader returned no camera frames.\n"
+                f"Check that sensor_blobs contains camera data:\n"
+                f"  OPENSCENE_DATA_ROOT: {openscene_root}\n"
+                f"  sensor_blobs path: {sensor_path}\n"
+                f"  Token: {getattr(agent_input, 'token', 'UNKNOWN')}\n"
+                f"  Try: ls -lh {sensor_path}/trainval/ or ls -lh {sensor_path}/test/"
+            )
+        
         if is_temporal:
             # Multi-frame extraction for temporal fusion
             camera_frames = []

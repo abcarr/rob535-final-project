@@ -57,17 +57,17 @@ class WoTEConfig:
     # Initial weight of the layer norms in the gpt.
     gpt_layer_norm_init_weight = 1.0
 
-    perspective_downsample_factor = 1
-    transformer_decoder_join = True
+    perspective_downsample_factor: int = 1
+    transformer_decoder_join: bool = True
     # detect_boxes = True
     # use_bev_semantic = True
 
-    detect_boxes = False
-    use_bev_semantic = False
+    detect_boxes: bool = False
+    use_bev_semantic: bool = False  
     
-    use_semantic = False
-    use_depth = False
-    add_features = True
+    use_semantic: bool = True  # Required for multitask learning (image features from backbone)
+    use_depth: bool = False
+    add_features: bool = True
 
     # Transformer
     tf_d_model: int = 256
@@ -173,3 +173,11 @@ class WoTEConfig:
     temporal_kernel_size: Tuple[int, int] = (3, 3)  # Convolution kernel size
     temporal_num_layers: int = 1  # Number of ConvGRU layers
     temporal_fusion_lr_mult: float = 1.0  # Learning rate multiplier for ConvGRU params
+
+    # Multi-task Learning (Semantic + Instance + Depth)
+    use_multitask_learning: bool = False  # Toggle multitask on/off
+    multitask_weight: float = 1.0  # Weight for multitask loss term
+    num_img_classes: int = 7  # Number of semantic classes (0=background + 6 object types)
+
+    # Deformable Attention (Sparse Spatial Attention for Agent Decoder)
+    use_deformable_attention: bool = False  # Apply deformable attention to BEV before agent decoder
