@@ -2,7 +2,7 @@
 
 **ROB 535 Final Project - Fall 2025**
 
-This repository contains an ablation study of architectural enhancements to the **World Model for Trajectory Evaluation (WoTE)** framework. We investigate three proposed improvements: temporal BEV fusion via ConvGRU, deformable attention, and multi-task learning with uncertainty-weighted loss balancing. While temporal fusion was fully implemented, HPC resource constraints prevented its evaluation. The two tested enhancements, deformable attention and multi-task learning, both degraded performance compared to the baseline.
+This repository contains an study of architectural enhancements to the **World Model for Trajectory Evaluation (WoTE)** framework. We investigate three proposed improvements: temporal BEV fusion via ConvGRU, deformable attention, and multi-task learning with uncertainty-weighted loss balancing. While temporal fusion was fully implemented, HPC resource constraints prevented its evaluation. The two tested enhancements, deformable attention and multi-task learning, both degraded performance compared to the baseline.
 
 **Original WoTE Paper:** Yingyan Li*, Yuqi Wang*, Yang Liu, Jiawei He, Lue Fan† and Zhaoxiang Zhang† [[📄 arXiv:2504.01941]](https://arxiv.org/abs/2504.01941)  
 **Original Repository:** [[🔗 liyingyanUCAS/WoTE]](https://github.com/liyingyanUCAS/WoTE)
@@ -45,17 +45,17 @@ We extend the baseline WoTE architecture with three proposed enhancements:
 ### Enhancement 1: Temporal BEV Fusion (ConvGRU)
 - **Goal**: Enable velocity estimation and occlusion reasoning
 - **Implementation**: Convolutional GRU aggregates 4 historical BEV frames with ego-motion compensation
-- **Status**: ⚠️ **Implemented but not evaluated** - HPC storage limitations prevented training. Temporal fusion requires storing 4× the dataset size, exceeding our cluster allocation. The implementation is complete and available in `navsim/agents/WoTE/modules/temporal_fusion.py`.
+- **Status**: **Implemented but not evaluated** - HPC storage limitations prevented training. Temporal fusion requires storing 4× the dataset size, exceeding our cluster allocation. The implementation is complete and available in `navsim/agents/WoTE/modules/temporal_fusion.py`.
 
 ### Enhancement 2: Deformable Attention
 - **Goal**: Focus computation on spatially salient BEV regions
 - **Implementation**: Sparse attention with K=8 learned sampling points (vs. full 8×8 grid)
-- **Result**: ❌ Marginal degradation (-0.58% PDM-Score)
+- **Result**: Marginal degradation (-0.58% PDM-Score)
 
 ### Enhancement 3: Multi-Task Learning
 - **Goal**: Regularize backbone with auxiliary supervision
 - **Implementation**: 3 auxiliary heads (semantic segmentation, instance offsets, depth) with uncertainty-weighted loss
-- **Result**: ❌ Significant degradation (-8.08% PDM-Score)
+- **Result**: Significant degradation (-8.08% PDM-Score)
 
 ---
 
@@ -207,10 +207,10 @@ Trained checkpoints are hosted externally:
 **🔗 [Download All Model Checkpoints (Google Drive)](https://drive.google.com/drive/folders/1yTPb9xEUMbPZNXhhFSHJ4axXCqX7mRna?usp=sharing)**
 
 The folder contains:
-- `baseline_wote_epoch_10.ckpt` (767 MB) - Baseline WoTE (59.90% PDM-Score)
-- `deformable_ablation_epoch_10.ckpt` (767 MB) - With deformable attention (59.32%)
-- `multitask_ablation_epoch_10.ckpt` (810 MB) - With multitask learning (51.82%)
-- `eval_combined_multitask_deformable_epoch_10.ckpt` (810 MB) - Both enhancements (57.16%)
+- `baseline_wote_epoch_10.ckpt` - Baseline WoTE
+- `deformable_ablation_epoch_10.ckpt`- Deformable attention
+- `multitask_ablation_epoch_10.ckpt` - With multitask learning
+- `eval_combined_multitask_deformable_epoch_10.ckpt` - Both enhancements
 
 ### To Use Downloaded Checkpoints
 
