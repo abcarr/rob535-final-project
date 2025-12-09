@@ -1,8 +1,8 @@
-# 🚗 Investigating Temporal Modeling, Efficient Attention, and Adaptive Loss Balancing as Improvements to WoTE
+# Investigating Temporal Modeling, Efficient Attention, and Adaptive Loss Balancing as Improvements to WoTE
 
 **ROB 535 Final Project - Fall 2025**
 
-This repository contains an ablation study of architectural enhancements to the **World Model for Trajectory Evaluation (WoTE)** framework. We investigate three proposed improvements: temporal BEV fusion via ConvGRU, deformable attention, and multi-task learning with uncertainty-weighted loss balancing. While temporal fusion was fully implemented, HPC resource constraints prevented its evaluation. The two tested enhancements—deformable attention and multi-task learning—both degraded performance compared to the baseline.
+This repository contains an ablation study of architectural enhancements to the **World Model for Trajectory Evaluation (WoTE)** framework. We investigate three proposed improvements: temporal BEV fusion via ConvGRU, deformable attention, and multi-task learning with uncertainty-weighted loss balancing. While temporal fusion was fully implemented, HPC resource constraints prevented its evaluation. The two tested enhancements, deformable attention and multi-task learning, both degraded performance compared to the baseline.
 
 **Original WoTE Paper:** Yingyan Li*, Yuqi Wang*, Yang Liu, Jiawei He, Lue Fan† and Zhaoxiang Zhang† [[📄 arXiv:2504.01941]](https://arxiv.org/abs/2504.01941)  
 **Original Repository:** [[🔗 liyingyanUCAS/WoTE]](https://github.com/liyingyanUCAS/WoTE)
@@ -13,21 +13,20 @@ This repository contains an ablation study of architectural enhancements to the 
   <img src="assets/architecture.png" alt="Baseline and Enhanced WoTE Architecture" width="1000"/>
 </p>
 
-*Figure: Comparison of baseline WoTE (top) and our enhanced architecture (bottom) with three proposed modifications: ① ConvGRU Temporal Fusion, ② Deformable Attention, and ③ Multi-Task Learning with Uncertainty-Weighted Loss.*
+*Figure: Comparison of baseline WoTE (top) and our enhanced architecture (bottom) with three proposed modifications: ConvGRU Temporal Fusion, Deformable Attention, and Multi-Task Learning with Uncertainty-Weighted Loss.*
 
 ---
 
 ## 📊 Performance Comparison
 
-| Model Configuration | NC | DAC | EP | TTC | Comf. | PDM-Score | Failure Rate | Checkpoint |
-|:-------------------:|:--:|:---:|:--:|:---:|:-----:|:---------:|:------------:|:----------:|
-| **Baseline WoTE** | **94.2%** | **91.9%** | **57.5%** | **91.6%** | **92.5%** | **59.90%** | **31.6%** | [📥 Download](#checkpoints) |
-| **Deformable Attention** | 93.7% | 91.6% | 57.3% | 91.4% | 92.2% | 59.32% | 32.3% | [📥 Download](#checkpoints) |
-| **Multitask Learning** | 93.0% | 88.8% | 51.6% | 88.7% | 88.3% | 51.82% | 41.3% | [📥 Download](#checkpoints) |
-| **Combined (Both)** | 93.5% | 90.1% | 54.4% | 90.2% | 90.2% | 57.16% | 34.5% | [📥 Download](#checkpoints) |
+| Model Configuration | NC | DAC | EP | TTC | Comf. | PDM-Score | Checkpoint |
+|:-------------------:|:--:|:---:|:--:|:---:|:-----:|:---------:|:----------:|
+| **Baseline WoTE** | **85.2%** | **80.3%** | **57.5%** | **74.7%** | **99.2%** | **59.9%** | [📥 Download](#checkpoints) |
+| **Deformable Attention** | 83.4% | 81.8% | 56.8% | 73.0% | 99.9% | 59.3% | [📥 Download](#checkpoints) |
+| **Multitask Learning** | 77.9% | 75.5% | 51.6% | 66.1% | 99.6% | 51.8% | [📥 Download](#checkpoints) |
+| **Combined (Both)** | 82.2% | 80.3% | 54.8% | 71.1% | 99.8% | 57.2% | [📥 Download](#checkpoints) |
 
 *All models trained on NAVSIM OpenScene split for 10 epochs on single NVIDIA A40 GPU.*  
-*Evaluated on 12,146 test scenarios from NAVSIM test set.*
 
 > **Legend**  
 > • NC: No At-Fault Collision  
@@ -51,17 +50,12 @@ We extend the baseline WoTE architecture with three proposed enhancements:
 ### Enhancement 2: Deformable Attention
 - **Goal**: Focus computation on spatially salient BEV regions
 - **Implementation**: Sparse attention with K=8 learned sampling points (vs. full 8×8 grid)
-- **Training**: 10 epochs on single A40 GPU
-- **Result**: ❌ Marginal degradation (-0.58% PDM-Score) - computational overhead outweighs benefits
+- **Result**: ❌ Marginal degradation (-0.58% PDM-Score)
 
 ### Enhancement 3: Multi-Task Learning
 - **Goal**: Regularize backbone with auxiliary supervision
 - **Implementation**: 3 auxiliary heads (semantic segmentation, instance offsets, depth) with uncertainty-weighted loss
-- **Training**: 10 epochs on single A40 GPU
-- **Result**: ❌ Significant degradation (-8.08% PDM-Score) - task interference degrades planning
-
-### Key Finding
-**Architectural simplicity outperforms complexity.** Both tested enhancements degraded performance compared to baseline, demonstrating that sophisticated mechanisms don't guarantee better results in complex autonomous driving domains. The baseline model remains the recommended deployment configuration. Temporal fusion remains untested due to resource constraints—it may have been the most promising enhancement given its direct targeting of velocity estimation limitations.
+- **Result**: ❌ Significant degradation (-8.08% PDM-Score)
 
 ---
 
@@ -208,7 +202,7 @@ python navsim/planning/script/run_pdm_score.py \
 
 ### <a name="checkpoints"></a>📥 Model Checkpoints
 
-Due to file size constraints (~700-810MB per model), trained checkpoints are hosted externally:
+Trained checkpoints are hosted externally:
 
 **🔗 [Download All Model Checkpoints (Google Drive)](https://drive.google.com/drive/folders/1yTPb9xEUMbPZNXhhFSHJ4axXCqX7mRna?usp=sharing)**
 
@@ -232,14 +226,6 @@ python navsim/planning/script/run_pdm_score.py \
   split=test
 ```
 
-### Reproducing Results
-
-All evaluation results can be reproduced using the provided checkpoints and SLURM evaluation scripts. Expected PDM-Scores:
-- Baseline: 59.90%
-- Deformable: 59.32%
-- Multitask: 51.82%
-- Combined: 57.16%
-
 ---
 
 ## 📄 6. Citation & Acknowledgments
@@ -249,7 +235,7 @@ If you use this ablation study or find the negative results valuable for your re
 ```bibtex
 @misc{wote_ablation2025,
   title={Investigating Temporal Modeling, Efficient Attention, and Adaptive Loss Balancing as Improvements to WoTE},
-  author={ROB 535 Final Project Team},
+  author={Carr, Alexander and Drosos, Matthew and Marri, Vidya},
   year={2025},
   institution={University of Michigan}
 }
